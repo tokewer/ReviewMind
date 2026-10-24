@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
 const webPkgPath = path.join(rootDir, 'web/package.json')
 const changelogPath = path.join(rootDir, 'CHANGELOG.md')
+const serverPyPath = path.join(rootDir, 'server.py')
+const reviewIndexPath = path.join(rootDir, 'web/src/pages/Review/Index.vue')
 
 function run(cmd) {
   try {
@@ -34,6 +36,21 @@ function bumpPatchVersion() {
       pkg.version = '1.1.0'
     }
     fs.writeFileSync(webPkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8')
+
+    // 同步更新 server.py
+    if (fs.existsSync(serverPyPath)) {
+      let pyContent = fs.readFileSync(serverPyPath, 'utf-8')
+      pyContent = pyContent.replace(/VERSION = ['"][^'"]+['"]/, `VERSION = '${pkg.version}'`)
+      fs.writeFileSync(serverPyPath, pyContent, 'utf-8')
+    }
+
+    // 同步更新 Review/Index.vue tag
+    if (fs.existsSync(reviewIndexPath)) {
+      let vueContent = fs.readFileSync(reviewIndexPath, 'utf-8')
+      vueContent = vueContent.replace(/<el-tag size="mini" type="info">v[^<]+<\/el-tag>/, `<el-tag size="mini" type="info">v${pkg.version}</el-tag>`)
+      fs.writeFileSync(reviewIndexPath, vueContent, 'utf-8')
+    }
+
     console.log(`📌 版本号自动更新: ${oldVersion} -> ${pkg.version}`)
     return pkg.version
   } catch (err) {

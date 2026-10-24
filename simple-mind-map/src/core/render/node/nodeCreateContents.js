@@ -7,7 +7,9 @@ import {
   addXmlns,
   generateColorByContent,
   camelCaseToHyphen,
-  getNodeRichTextStyles
+  getNodeRichTextStyles,
+  isMarkdownTable,
+  markdownTableToHtml
 } from '../../../utils'
 import { Image as SVGImage, SVG, A, G, Rect, Text } from '@svgdotjs/svg.js'
 import iconsSvg from '../../../svg/icons'
@@ -138,6 +140,9 @@ function createRichTextNode(specifyText) {
   const hasCustomWidth = this.hasCustomWidth()
   let text =
     typeof specifyText === 'string' ? specifyText : this.getData('text')
+  if (isMarkdownTable(text)) {
+    text = markdownTableToHtml(text)
+  }
   let { textAutoWrapWidth, emptyTextMeasureHeightText } = this.mindMap.opt
   textAutoWrapWidth = hasCustomWidth ? this.customTextWidth : textAutoWrapWidth
   const g = new G()
@@ -188,7 +193,12 @@ function createRichTextNode(specifyText) {
   const el = div.children[0]
   el.classList.add('smm-richtext-node-wrap')
   addXmlns(el)
-  el.style.maxWidth = textAutoWrapWidth + 'px'
+  const containsTable = /<table[\s>]/i.test(text)
+  if (containsTable) {
+    el.style.maxWidth = 'none'
+  } else {
+    el.style.maxWidth = textAutoWrapWidth + 'px'
+  }
   if (hasCustomWidth) {
     el.style.width = this.customTextWidth + 'px'
   } else {
@@ -203,7 +213,11 @@ function createRichTextNode(specifyText) {
     height = elTmp.getBoundingClientRect().height
     div.innerHTML = html
   }
-  width = Math.min(Math.ceil(width) + 1, textAutoWrapWidth) // 修复getBoundingClientRect方法对实际宽度是小数的元素获取到的值是整数，导致宽度不够文本发生换行的问题
+  if (containsTable) {
+    width = Math.ceil(width) + 2
+  } else {
+    width = Math.min(Math.ceil(width) + 1, textAutoWrapWidth) // 修复getBoundingClientRect方法对实际宽度是小数的元素获取到的值是整数，导致宽度不够文本发生换行的问题
+  }
   height = Math.ceil(height)
   g.attr('data-width', width)
   g.attr('data-height', height)
@@ -235,12 +249,17 @@ function createTextNode(specifyText) {
   if (this.getData('needUpdate')) {
     delete this.nodeData.data.needUpdate
   }
-  // 如果是富文本内容，那么转给富文本函数
-  if (this.getData('richText')) {
-    return this.createRichTextNode(specifyText)
-  }
   const text =
     typeof specifyText === 'string' ? specifyText : this.getData('text')
+  // 如果是富文本内容，或包含 HTML 表格/Markdown 表格，转给富文本创建函数
+  if (
+    this.getData('richText') ||
+    checkIsRichText(text) ||
+    /<table[\s>]/i.test(text) ||
+    isMarkdownTable(text)
+  ) {
+    return this.createRichTextNode(specifyText)
+  }
   if (this.getData('resetRichText')) {
     delete this.nodeData.data.resetRichText
   }

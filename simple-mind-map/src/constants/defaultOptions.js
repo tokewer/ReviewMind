@@ -397,6 +397,25 @@ export const defaultOpt = {
       padding: 0;
       box-sizing: border-box;
     }
+    table.smm-node-table, .smm-richtext-node-wrap table {
+      border-collapse: collapse;
+      border-spacing: 0;
+      margin: 6px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    table.smm-node-table td, table.smm-node-table th,
+    .smm-richtext-node-wrap table td, .smm-richtext-node-wrap table th {
+      border: 1px solid #dcdfe6;
+      padding: 5px 8px;
+      min-width: 32px;
+      text-align: left;
+      box-sizing: border-box;
+    }
+    table.smm-node-table th, .smm-richtext-node-wrap table th {
+      background-color: rgba(0, 0, 0, 0.05);
+      font-weight: bold;
+    }
   `,
   // 导出图片时canvas的缩放倍数，该配置会和window.devicePixelRatio值取最大值
   minExportImgCanvasScale: 2,

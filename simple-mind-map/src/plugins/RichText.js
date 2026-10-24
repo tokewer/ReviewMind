@@ -10,7 +10,8 @@ import {
   nodeRichTextToTextWithWrap,
   getNodeRichTextStyles,
   htmlEscape,
-  compareVersion
+  compareVersion,
+  isMarkdownTable
 } from '../utils'
 import { richTextSupportStyleList } from '../constants/constant'
 import MindMapNode from '../core/render/node/MindMapNode'
@@ -233,6 +234,11 @@ class RichText {
   // 显示文本编辑控件
   showEditText({ node, rect, isInserting, isFromKeyDown, isFromScale }) {
     if (this.showTextEdit) {
+      return
+    }
+    const text = String(node.getData('text') || '')
+    if (/<table[\s>]/i.test(text) || isMarkdownTable(text)) {
+      this.mindMap.emit('show_node_table', node)
       return
     }
     let {

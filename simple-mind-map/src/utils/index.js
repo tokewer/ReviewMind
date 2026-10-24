@@ -682,7 +682,10 @@ export const nodeRichTextToTextWithWrap = html => {
     if (node.nodeType === 1) {
       // 元素节点
       removeFormulaTags(node)
-      if (node.tagName.toLowerCase() === 'p') {
+      if (node.tagName.toLowerCase() === 'table') {
+        const mdTable = htmlTableToMarkdown(node)
+        res += (mdTable ? mdTable + '\n\n' : node.textContent + '\n')
+      } else if (node.tagName.toLowerCase() === 'p') {
         res += node.textContent + '\n'
       } else {
         res += node.textContent
@@ -734,8 +737,12 @@ export const textToNodeRichTextWithWrap = html => {
 // 但要保留数学公式内容
 let removeRichTextStyesEl = null
 export const removeRichTextStyes = html => {
-  if (!removeRichTextStyesEl) {
+  if (!html || typeof html !== 'string') return ''
+  if (!removeRichTextStyesEl && typeof document !== 'undefined') {
     removeRichTextStyesEl = document.createElement('div')
+  }
+  if (!removeRichTextStyesEl || !removeRichTextStyesEl.querySelectorAll) {
+    return html
   }
   removeRichTextStyesEl.innerHTML = html
   // 首先用占位文本替换掉所有的公式
@@ -744,23 +751,30 @@ export const removeRichTextStyes = html => {
     const placeholder = document.createTextNode('$smmformula$')
     el.parentNode.replaceChild(placeholder, el)
   })
-  // 然后遍历每行节点，去掉内部的所有标签，转为文本
+  // 然后遍历每行节点，保留表格标签，去掉其他内部的所有标签转为文本
   const childNodes = removeRichTextStyesEl.childNodes
   let list = []
   for (let i = 0; i < childNodes.length; i++) {
     const node = childNodes[i]
     if (node.nodeType === 1) {
       // 元素节点
-      list.push(node.textContent)
+      if (node.tagName.toLowerCase() === 'table') {
+        list.push({ isTable: true, html: node.outerHTML })
+      } else {
+        list.push({ isTable: false, text: node.textContent })
+      }
     } else if (node.nodeType === 3) {
       // 文本节点
-      list.push(node.nodeValue)
+      list.push({ isTable: false, text: node.nodeValue })
     }
   }
   // 拼接文本
   html = list
     .map(item => {
-      return `<p><span>${htmlEscape(item)}</span></p>`
+      if (item.isTable) {
+        return item.html
+      }
+      return `<p><span>${htmlEscape(item.text)}</span></p>`
     })
     .join('')
   // 将公式添加回去
@@ -1717,4 +1731,30 @@ export const compareVersion = (a, b) => {
     }
   }
   return '='
+}
+
+import {
+  escapeHtml,
+  unescapeHtml,
+  isMarkdownTable,
+  markdownTableToMatrix,
+  matrixToMarkdownTable,
+  htmlTableToMatrix,
+  matrixToHtmlTable,
+  markdownTableToHtml,
+  htmlTableToMarkdown,
+  csvOrTsvToMatrix
+} from './table'
+
+export {
+  escapeHtml,
+  unescapeHtml,
+  isMarkdownTable,
+  markdownTableToMatrix,
+  matrixToMarkdownTable,
+  htmlTableToMatrix,
+  matrixToHtmlTable,
+  markdownTableToHtml,
+  htmlTableToMarkdown,
+  csvOrTsvToMatrix
 }

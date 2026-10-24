@@ -2,6 +2,32 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.3.1] - 2026-10-25
+
+### Fixed
+- **彻底修复表格插入与显示失败缺陷**：
+  - **根除节点重置样式时的表格损毁**：修复之前在插入表格时传递 `resetRichText: true` 导致 `removeRichTextStyes` 将所有 `<table>`、`<tr>`、`<td>` 标签降解为无结构纯文本的致命缺陷，现全面保留表格 DOM 结构。
+  - **自动判定并升格富文本渲染 (`createRichTextNode`)**：在 `createTextNode` 中自动识别 HTML 表格 (`<table`) 及 Markdown 表格语法，无论节点先前是否激活富文本开关，均自动走 ForeignObject 渲染，彻底杜绝 raw HTML 字符或空白。
+  - **自适应表格自然宽度**：取消普通长段落强行截断的 `maxWidth` 限制，表格节点自动按实际所需宽度测绘并自适应铺展，解决多列内容被挤压剪切的显示问题。
+  - **规避 Quill 双击破坏表格**：双击或回车编辑含表格节点时，自动拦截普通富文本编辑器，无缝唤起专用表格弹窗，避免 Quill 将表格降解。
+  - **修复导出样式丢失**：在 `defaultOptions.js` 的 `resetCss` 中补齐表格边框、间距与表头样式，确保导出 PNG、SVG、PDF 时表格完好呈现。
+
+### Added
+- **全新 Logseq 风格可视化与 Markdown 双向表格系统 (`NodeTableDialog.vue`)**：
+  - **Logseq / GitHub 双向 Markdown 表格支持**：
+    - 支持 Markdown 表格（`| col1 | col2 |\n| :--- | :---: |`）与可视化网格无缝双向转换与实时同步。
+    - 新增独立「Markdown 源码」编辑面板，支持熟悉键盘与 Markdown 语法的用户直接敲写表格。
+    - 思维导图导出为 Markdown（`toMarkdown.js`）时自动将表格导出为规范 Markdown 表格。
+  - **Excel / WPS / CSV / TSV 一键粘贴导入**：
+    - 新增「快速导入」面板，从 Excel、WPS 表格或网页复制任意数据块，直接粘贴即可自动识别分隔符（Tab/逗号/竖线）一键载入表格。
+  - **电子表格级交互与快捷键**：
+    - 精确行列操作：支持在当前选中单元格处「上插行 / 下插行 / 删此行 / 左插列 / 右插列 / 删此列」。
+    - 列对齐方式自定义：支持为每一列独立设置「左对齐 / 居中 / 右对齐」，自动映射至 Markdown 语法与 CSS。
+    - 快捷键体验：`Tab` 跳至下一格（末格按 Tab 自动新增行）、`Shift + Tab` 反向跳转、`Enter` 换行跳转、`Shift + Enter` 单元格内换行、上下方向键无缝导航。
+    - 一键快捷导出：支持一键「复制 MD 表格」与「复制 CSV」至系统剪贴板。
+  - **复习中心 (Review) 闭环表格支持**：
+    - 复习中心正反面知识点卡片全面支持解析并渲染 Markdown 表格与 HTML 表格，自适应暗黑模式与移动端滚轮。
+
 ## [1.2.3] - 2026-10-21
 
 ### Added

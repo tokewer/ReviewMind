@@ -4,7 +4,7 @@
       <div class="left">
         <div style="display: flex; align-items: center; gap: 8px;">
           <h2>复习中心</h2>
-          <el-tag size="mini" type="info">v1.1.0</el-tag>
+          <el-tag size="mini" type="info">v1.3.1</el-tag>
         </div>
         <span class="date">{{ today }}</span>
       </div>
@@ -78,11 +78,11 @@
                 </div>
 
                 <div class="cardContent" v-if="activeCard">
-                  <div class="qaFront">{{ activeCard.front }}</div>
+                  <div class="qaFront" v-html="renderCardContent(activeCard.front)"></div>
                   <div class="qaHint" v-if="activeCard.hint">💡 提示：{{ activeCard.hint }}</div>
                 </div>
                 <div class="cardContent" v-else>
-                  <div class="qaFront">回忆：{{ currentReview.name }}</div>
+                  <div class="qaFront" v-html="renderCardContent('回忆：' + currentReview.name)"></div>
                   <div class="qaHint">（该节点暂未添加卡片，请根据知识点名称回忆全部内容）</div>
                 </div>
 
@@ -97,7 +97,7 @@
                 <div class="cardBack" v-if="showAnswer">
                   <div class="backLabel">✅ 参考答案</div>
                   <div class="backContent" v-if="activeCard">
-                    <div class="qaBack">{{ activeCard.back }}</div>
+                    <div class="qaBack" v-html="renderCardContent(activeCard.back)"></div>
                   </div>
                   <div class="backContent" v-else>
                     <div class="qaBack">（该节点暂无独立卡片，建议在下方或导图中添加复习卡片）</div>
@@ -868,6 +868,7 @@ import {
 } from '@/review/reviewShortcuts'
 import { getFileList, getLocalConfig, readFileData, resumeDirectoryMode, getStorageConfig, setStorageConfig } from '@/api'
 import * as directoryStorage from '@/api/directoryStorage'
+import { isMarkdownTable, markdownTableToHtml, escapeHtml } from 'simple-mind-map/src/utils/table'
 import { buildParentMap, buildReviewGroups, getReviewFileKey, toDirectorySubjectList } from '@/review/tree'
 import {
   STATUS_OPTIONS,
@@ -1184,6 +1185,17 @@ export default {
   },
   methods: {
     ...mapMutations(['setLocalConfig']),
+    renderCardContent(val) {
+      if (!val) return ''
+      let text = String(val)
+      if (isMarkdownTable(text)) {
+        text = markdownTableToHtml(text)
+      }
+      if (/<table[\s>]/i.test(text)) {
+        return text
+      }
+      return escapeHtml(text).replace(/\n/g, '<br>')
+    },
     onFlushBeforeLeave() {
       if (this.isDirectoryMode) {
         flushReviewWrites()
@@ -2154,6 +2166,25 @@ export default {
               font-size: 18px;
               font-weight: 600;
               line-height: 1.6;
+
+              /deep/ table.smm-node-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0;
+                font-size: 14px;
+                border: 1px solid #dcdfe6;
+
+                th, td {
+                  border: 1px solid #dcdfe6;
+                  padding: 6px 10px;
+                  text-align: left;
+                }
+
+                th {
+                  background-color: rgba(64, 158, 255, 0.08);
+                  font-weight: 600;
+                }
+              }
             }
 
             .qaHint {
@@ -2189,6 +2220,25 @@ export default {
               font-size: 16px;
               line-height: 1.7;
               color: #303133;
+
+              /deep/ table.smm-node-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 10px 0;
+                font-size: 14px;
+                border: 1px solid #dcdfe6;
+
+                th, td {
+                  border: 1px solid #dcdfe6;
+                  padding: 6px 10px;
+                  text-align: left;
+                }
+
+                th {
+                  background-color: rgba(64, 158, 255, 0.08);
+                  font-weight: 600;
+                }
+              }
             }
           }
         }

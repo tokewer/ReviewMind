@@ -8,7 +8,8 @@ import {
   checkSmmFormatData,
   getTextFromHtml,
   isWhite,
-  getVisibleColorFromTheme
+  getVisibleColorFromTheme,
+  isMarkdownTable
 } from '../../utils'
 import {
   ERROR_TYPES,
@@ -254,6 +255,11 @@ export default class TextEdit {
       isInserting,
       isFromKeyDown,
       isFromScale
+    }
+    const text = String(node.getData('text') || '')
+    if (/<table[\s>]/i.test(text) || isMarkdownTable(text)) {
+      this.mindMap.emit('show_node_table', node)
+      return
     }
     if (this.mindMap.richText) {
       this.mindMap.richText.showEditText(params)
