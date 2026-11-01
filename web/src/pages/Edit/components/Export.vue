@@ -47,6 +47,24 @@
           </div>
           <!-- 配置 -->
           <div class="contentBox customScrollbar">
+                        <!-- 导出范围 -->
+            <div class="contentRow">
+              <div class="contentName">导出范围</div>
+              <div class="contentValue">
+                <el-radio-group v-model="exportScope" size="mini" @change="onScopeChange">
+                  <el-radio label="all">完整思维导图</el-radio>
+                  <el-radio label="node" :disabled="!hasTargetNode">
+                    单片导出（当前节点及子节点）
+                  </el-radio>
+                </el-radio-group>
+                <div v-if="exportScope === 'node'" class="scopeNodeTip" style="font-size: 12px; color: #409EFF; margin-top: 6px; line-height: 1.4;">
+                  🎯 正在单片导出节点：<b>{{ activeNodeText }}</b>（包含其所有下级子节点与图片）
+                </div>
+                <div v-else-if="!hasTargetNode" class="scopeNodeTip" style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.4;">
+                  💡 提示：在导图选中任意节点或右键点击「单片导出」，可只导出该节点及其下级分支。
+                </div>
+              </div>
+            </div>
             <div class="contentRow">
               <div class="contentName">{{ $t('export.format') }}</div>
               <div class="contentValue info">
@@ -206,16 +224,74 @@ export default {
     }
   },
   created() {
+    this.$bus.$on('app_inited', this.onAppInited)
     this.$bus.$on('showExport', this.handleShowExport)
+    this.$bus.$on('showNodeExport', this.handleShowNodeExport)
   },
   beforeDestroy() {
+    this.$bus.$off('app_inited', this.onAppInited)
     this.$bus.$off('showExport', this.handleShowExport)
+    this.$bus.$off('showNodeExport', this.handleShowNodeExport)
   },
   methods: {
     ...mapMutations(['setExtraTextOnExport']),
 
-    handleShowExport() {
+    onAppInited(mindMap) {
+      this.mindMap = mindMap
+    },
+
+    handleShowExport(opt = {}) {
       this.dialogVisible = true
+      this.initExportScope(opt)
+    },
+
+    handleShowNodeExport(node) {
+      this.dialogVisible = true
+      this.initExportScope({ scope: 'node', node })
+    },
+
+    initExportScope(opt = {}) {
+      if (opt && opt.node) {
+        this.targetNode = opt.node
+        this.hasTargetNode = true
+        this.exportScope = 'node'
+        const text = getTextFromHtml(opt.node.getData('text')) || '单片节点'
+        this.activeNodeText = text
+        this.fileName = text
+      } else {
+        const activeList =
+          (this.mindMap &&
+            this.mindMap.renderer &&
+            this.mindMap.renderer.activeNodeList) ||
+          []
+        if (activeList.length > 0) {
+          this.targetNode = activeList[0]
+          this.hasTargetNode = true
+          this.activeNodeText =
+            getTextFromHtml(activeList[0].getData('text')) || '单片节点'
+          if (opt && opt.scope === 'node') {
+            this.exportScope = 'node'
+            this.fileName = this.activeNodeText
+          } else {
+            this.exportScope = 'all'
+            this.fileName = this.$t('export.defaultFileName')
+          }
+        } else {
+          this.targetNode = null
+          this.hasTargetNode = false
+          this.exportScope = 'all'
+          this.activeNodeText = ''
+          this.fileName = this.$t('export.defaultFileName')
+        }
+      }
+    },
+
+    onScopeChange(val) {
+      if (val === 'node' && this.hasTargetNode) {
+        this.fileName = this.activeNodeText || '单片节点'
+      } else if (val === 'all') {
+        this.fileName = this.$t('export.defaultFileName')
+      }
     },
 
     onPaddingChange() {
@@ -231,6 +307,7 @@ export default {
 
     confirm() {
       this.setExtraTextOnExport(this.extraText)
+      const node = this.exportScope === 'node' ? this.targetNode : null
       if (this.exportType === 'svg') {
         this.$bus.$emit(
           'export',
@@ -241,7 +318,8 @@ export default {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-          }`
+          }`,
+          node
         )
       } else if (['smm', 'json'].includes(this.exportType)) {
         this.$bus.$emit(
@@ -249,7 +327,8 @@ export default {
           this.exportType,
           true,
           this.fileName,
-          this.widthConfig
+          this.widthConfig,
+          node
         )
       } else if (this.exportType === 'png') {
         this.$bus.$emit(
@@ -258,7 +337,7 @@ export default {
           true,
           this.fileName,
           this.isTransparent,
-          null,
+          node,
           this.isFitBg
         )
       } else if (this.exportType === 'pdf') {
@@ -268,10 +347,11 @@ export default {
           true,
           this.fileName,
           this.isTransparent,
-          this.isFitBg
+          this.isFitBg,
+          node
         )
       } else {
-        this.$bus.$emit('export', this.exportType, true, this.fileName)
+        this.$bus.$emit('export', this.exportType, true, this.fileName, node)
       }
       this.$notify.info({
         title: this.$t('export.notifyTitle'),

@@ -107,6 +107,7 @@ class Render {
     this.textEdit = new TextEdit(this)
     // 当前复制的数据
     this.beingCopyData = null
+    this.beingCopyImgMap = null
     // 节点高亮框
     this.highlightBoxNode = null
     this.highlightBoxNodeStyle = null
@@ -1304,12 +1305,35 @@ class Render {
     }
   }
 
+  // 收集节点树中引用的图片
+  collectNodeImages(nodeDataList) {
+    const imgMap = {}
+    if (!nodeDataList) return imgMap
+    const list = Array.isArray(nodeDataList) ? nodeDataList : [nodeDataList]
+    const currentImgMap =
+      (this.renderTree && this.renderTree.data && this.renderTree.data.imgMap) ||
+      {}
+    const walk = item => {
+      if (!item || !item.data) return
+      const img = item.data.image
+      if (img && currentImgMap[img]) {
+        imgMap[img] = currentImgMap[img]
+      }
+      if (item.children && item.children.length > 0) {
+        item.children.forEach(walk)
+      }
+    }
+    list.forEach(walk)
+    return imgMap
+  }
+
   // 复制节点
   copy() {
     this.beingCopyData = this.copyNode()
     if (!this.beingCopyData) return
+    this.beingCopyImgMap = this.collectNodeImages(this.beingCopyData)
     if (!this.mindMap.opt.disabledClipboard) {
-      setDataToClipboard(createSmmFormatData(this.beingCopyData))
+      setDataToClipboard(createSmmFormatData(this.beingCopyData, this.beingCopyImgMap))
     }
   }
 
@@ -1317,8 +1341,9 @@ class Render {
   cut() {
     this.mindMap.execCommand('CUT_NODE', copyData => {
       this.beingCopyData = copyData
+      this.beingCopyImgMap = this.collectNodeImages(copyData)
       if (!this.mindMap.opt.disabledClipboard) {
-        setDataToClipboard(createSmmFormatData(copyData))
+        setDataToClipboard(createSmmFormatData(copyData, this.beingCopyImgMap))
       }
     })
   }
@@ -1383,11 +1408,17 @@ class Render {
               )
             }
           }
-          // 默认处理
+                    // 默认处理
           if (useDefault) {
             const checkRes = checkSmmFormatData(text)
             if (checkRes.isSmm) {
               smmData = checkRes.data
+              if (checkRes.imgMap && typeof checkRes.imgMap === 'object') {
+                if (!this.renderTree.data.imgMap) {
+                  this.renderTree.data.imgMap = {}
+                }
+                Object.assign(this.renderTree.data.imgMap, checkRes.imgMap)
+              }
             } else {
               text = checkRes.data
             }
@@ -1468,9 +1499,15 @@ class Render {
         errorHandler(ERROR_TYPES.READ_CLIPBOARD_ERROR, error)
       }
     } else {
-      // 禁用剪贴板或不支持剪贴板时
+            // 禁用剪贴板或不支持剪贴板时
       // 粘贴画布内的节点数据
       if (this.beingCopyData) {
+        if (this.beingCopyImgMap && typeof this.beingCopyImgMap === 'object') {
+          if (!this.renderTree.data.imgMap) {
+            this.renderTree.data.imgMap = {}
+          }
+          Object.assign(this.renderTree.data.imgMap, this.beingCopyImgMap)
+        }
         this.mindMap.execCommand('PASTE_NODE', this.beingCopyData)
       }
     }
@@ -1795,8 +1832,16 @@ class Render {
     this.mindMap.render()
   }
 
-  //   粘贴节点到节点
+    //   粘贴节点到节点
   pasteNode(data) {
+    if (this.beingCopyImgMap && typeof this.beingCopyImgMap === 'object') {
+      if (this.renderTree && this.renderTree.data) {
+        if (!this.renderTree.data.imgMap) {
+          this.renderTree.data.imgMap = {}
+        }
+        Object.assign(this.renderTree.data.imgMap, this.beingCopyImgMap)
+      }
+    }
     data = formatDataToArray(data)
     this.mindMap.execCommand('INSERT_MULTI_CHILD_NODE', [], data)
   }

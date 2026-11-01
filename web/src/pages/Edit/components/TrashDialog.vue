@@ -88,6 +88,14 @@ export default {
           }
           const root = mindMap.renderer.root
           if (!root) return
+          // 恢复节点对应的图片映射，确保图片可读可加载
+          if (item.imgMap && typeof item.imgMap === 'object' && Object.keys(item.imgMap).length > 0) {
+            const renderTree = mindMap.renderer.renderTree
+            if (renderTree && renderTree.data) {
+              if (!renderTree.data.imgMap) renderTree.data.imgMap = {}
+              Object.assign(renderTree.data.imgMap, item.imgMap)
+            }
+          }
           // 深拷贝被删节点数据，附上新 uid 并继承原复习进度
           const nodeData = JSON.parse(JSON.stringify(item.data))
           const oldUid = nodeData.data && nodeData.data.uid

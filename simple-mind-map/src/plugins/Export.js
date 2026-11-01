@@ -1,5 +1,7 @@
 import {
   imgToDataUrl,
+  copyNodeTree,
+  createUid,
   downloadFile,
   readBlob,
   removeHTMLEntities,
@@ -373,36 +375,42 @@ class Export {
   }
 
   //  导出为pdf
-  async pdf(name, transparent = false, fitBg = false) {
+  async pdf(name, transparent = false, fitBg = false, node = null) {
     if (!this.mindMap.doExportPDF) {
       throw new Error('请注册ExportPDF插件')
     }
-    const img = await this.png(name, transparent, null, fitBg)
-    // 使用jspdf库
-    // await this.mindMap.doExportPDF.pdf(name, img)
-    // 使用pdf-lib库
+    const img = await this.png(name, transparent, node, fitBg)
     const res = await this.mindMap.doExportPDF.pdf(img)
     return res
   }
 
   // 导出为xmind
-  async xmind(name) {
+  async xmind(name, node = null) {
     if (!this.mindMap.doExportXMind) {
       throw new Error('请注册ExportXMind插件')
     }
-    const data = this.mindMap.getData()
+    let data
+    if (node) {
+      data = { root: copyNodeTree({}, node, true) }
+    } else {
+      data = this.mindMap.getData()
+    }
     const blob = await this.mindMap.doExportXMind.xmind(data, name)
     const res = await readBlob(blob)
     return res
   }
 
   //  导出为svg
-  async svg(name) {
+  async svg(name, css = '', node = null) {
     this.mindMap.renderer.textEdit.hideEditTextBox()
-    const { node } = await this.getSvgData()
-    node.first().before(SVG(`<title>${name}</title>`))
-    await this.drawBackgroundToSvg(node)
-    const str = node.svg()
+    if (css && typeof css === 'object' && (css.nodeData || css.uid)) {
+      node = css
+      css = ''
+    }
+    const { node: svgNode } = await this.getSvgData(node)
+    svgNode.first().before(SVG(`<title>${name}</title>`))
+    await this.drawBackgroundToSvg(svgNode)
+    const str = svgNode.svg()
     const res = await this.fixSvgStrAndToBlob(str)
     return res
   }
@@ -421,24 +429,160 @@ class Export {
     return res
   }
 
+  // 水合所有图片为独立的 base64 Data URL，确保导出文件自包含、再导入时不丢失
+  async hydrateAllImages(rootData) {
+    if (!rootData || !rootData.data) return
+    const allImgMap =
+      (this.mindMap.renderer.renderTree &&
+        this.mindMap.renderer.renderTree.data &&
+        this.mindMap.renderer.renderTree.data.imgMap) ||
+      {}
+    let targetImgMap = rootData.data.imgMap
+    if (!targetImgMap) {
+      targetImgMap = rootData.data.imgMap = {}
+    }
+
+    const tasks = []
+
+    const toDataUrlSafe = async src => {
+      if (!src || typeof src !== 'string') return ''
+      if (/^data:/.test(src)) return src
+      try {
+        const res = await imgToDataUrl(src)
+        return res || src
+      } catch (e) {
+        return src
+      }
+    }
+
+    const walk = node => {
+      if (!node || !node.data) return
+      const img = node.data.image
+      if (img) {
+        if (/^smm_img_key_/.test(img)) {
+          const raw = allImgMap[img] || targetImgMap[img]
+          if (raw) {
+            tasks.push(
+              (async () => {
+                const b64 = await toDataUrlSafe(raw)
+                targetImgMap[img] = b64
+              })()
+            )
+          }
+        } else if (/^data:/.test(img)) {
+          const existingKey = Object.keys(targetImgMap).find(
+            k => targetImgMap[k] === img
+          )
+          if (!existingKey) {
+            const key = 'smm_img_key_' + createUid()
+            targetImgMap[key] = img
+            node.data.image = key
+          } else {
+            node.data.image = existingKey
+          }
+        } else {
+          tasks.push(
+            (async () => {
+              const b64 = await toDataUrlSafe(img)
+              const key = 'smm_img_key_' + createUid()
+              targetImgMap[key] = b64
+              node.data.image = key
+            })()
+          )
+        }
+      }
+      // 富文本中的 <img> 标签
+      if (
+        node.data.text &&
+        typeof node.data.text === 'string' &&
+        /<img[^>]+src=["']?([^"'>\s]+)["']?/i.test(node.data.text)
+      ) {
+        tasks.push(
+          (async () => {
+            const imgRe = /(<img[^>]+src=["'])([^"'>\s]+)(["'][^>]*>)/gi
+            let text = node.data.text
+            const matches = []
+            let m
+            while ((m = imgRe.exec(text)) !== null) {
+              matches.push({ full: m[0], prefix: m[1], src: m[2], suffix: m[3] })
+            }
+            for (const item of matches) {
+              if (!/^data:/.test(item.src)) {
+                const b64 = await toDataUrlSafe(item.src)
+                if (b64 && /^data:/.test(b64)) {
+                  text = text.replace(item.full, item.prefix + b64 + item.suffix)
+                }
+              }
+            }
+            node.data.text = text
+          })()
+        )
+      }
+      if (node.children && node.children.length > 0) {
+        node.children.forEach(walk)
+      }
+    }
+
+    walk(rootData)
+
+    Object.keys(targetImgMap).forEach(key => {
+      const src = targetImgMap[key]
+      if (src && !/^data:/.test(src)) {
+        tasks.push(
+          (async () => {
+            targetImgMap[key] = await toDataUrlSafe(src)
+          })()
+        )
+      }
+    })
+
+    await Promise.all(tasks)
+  }
+
   //  导出为json
-  async json(name, withConfig = true) {
-    const data = this.mindMap.getData(withConfig)
-    const str = JSON.stringify(data)
-    const blob = new Blob([str])
+  async json(name, withConfig = true, node = null) {
+    let data = null
+    if (node) {
+      // 单片导出：以 node 为 root
+      const subtree = copyNodeTree({}, node, true)
+      await this.hydrateAllImages(subtree)
+      if (withConfig) {
+        data = {
+          layout: this.mindMap.getLayout(),
+          root: subtree,
+          theme: {
+            template: this.mindMap.getTheme(),
+            config: this.mindMap.getCustomThemeConfig()
+          },
+          view: this.mindMap.view.getTransformData()
+        }
+      } else {
+        data = subtree
+      }
+    } else {
+      data = this.mindMap.getData(withConfig)
+      await this.hydrateAllImages(withConfig ? data.root : data)
+    }
+    const str = JSON.stringify(data, null, 2)
+    const blob = new Blob([str], { type: 'application/json' })
     const res = await readBlob(blob)
     return res
   }
 
   //  专有文件，其实就是json文件
-  async smm(name, withConfig) {
-    const res = await this.json(name, withConfig)
+  async smm(name, withConfig = true, node = null) {
+    const res = await this.json(name, withConfig, node)
     return res
   }
 
   // markdown文件
-  async md() {
-    const data = this.mindMap.getData()
+  async md(name, node = null) {
+    let data
+    if (node) {
+      data = { root: copyNodeTree({}, node, true) }
+    } else {
+      data = this.mindMap.getData()
+    }
     const content = transformToMarkdown(data)
     const blob = new Blob([content])
     const res = await readBlob(blob)
@@ -446,8 +590,13 @@ class Export {
   }
 
   // txt文件
-  async txt() {
-    const data = this.mindMap.getData()
+  async txt(name, node = null) {
+    let data
+    if (node) {
+      data = { root: copyNodeTree({}, node, true) }
+    } else {
+      data = this.mindMap.getData()
+    }
     const content = transformToTxt(data)
     const blob = new Blob([content])
     const res = await readBlob(blob)

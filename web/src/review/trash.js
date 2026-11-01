@@ -22,12 +22,13 @@ const save = list => {
 }
 
 // 加入回收站（最多保留 50 条）
-export const addToTrash = nodeData => {
+export const addToTrash = (nodeData, imgMap = {}) => {
   if (!nodeData || !nodeData.data) return
   const list = load()
   list.unshift({
     id: 'trash_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
     data: nodeData,
+    imgMap: imgMap && typeof imgMap === 'object' ? imgMap : {},
     time: Date.now()
   })
   if (list.length > 50) list.length = 50

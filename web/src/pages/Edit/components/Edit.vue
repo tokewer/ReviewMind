@@ -553,12 +553,31 @@ export default {
       )
     },
 
-    // 捕获节点删除，写入回收站
+    // 捕获节点删除，写入回收站（连同图片映射一并暂存，确保恢复时图片依然可读可加载）
     handleDataChangeDetail(detailList) {
       if (!detailList || !Array.isArray(detailList)) return
+      const currentImgMap =
+        (this.mindMap &&
+          this.mindMap.renderer &&
+          this.mindMap.renderer.renderTree &&
+          this.mindMap.renderer.renderTree.data &&
+          this.mindMap.renderer.renderTree.data.imgMap) ||
+        {}
       detailList.forEach(item => {
         if (item && item.action === 'delete' && item.data) {
-          addToTrash(item.data)
+          const nodeImgMap = {}
+          const walkCollect = node => {
+            if (!node || !node.data) return
+            const img = node.data.image
+            if (img && currentImgMap[img]) {
+              nodeImgMap[img] = currentImgMap[img]
+            }
+            if (node.children && node.children.length > 0) {
+              node.children.forEach(walkCollect)
+            }
+          }
+          walkCollect(item.data)
+          addToTrash(item.data, nodeImgMap)
         }
       })
     },
@@ -1049,9 +1068,15 @@ export default {
       }
       let rootNodeData = null
       if (data && data.root) {
+        if (data.imgMap && data.root.data && !data.root.data.imgMap) {
+          data.root.data.imgMap = { ...data.imgMap }
+        }
         this.mindMap.setFullData(data)
         rootNodeData = data.root
       } else {
+        if (data && data.imgMap && data.data && !data.data.imgMap) {
+          data.data.imgMap = { ...data.imgMap }
+        }
         this.mindMap.setData(data)
         rootNodeData = data
       }

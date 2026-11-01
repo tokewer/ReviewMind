@@ -38,7 +38,14 @@ const defaultTagStyle = {
 // 因为如果注册了NodeBase64ImageStorage插件，那么节点图片字段保存的实际是一个id，所以如果要获取图片真实的url可以通过该方法
 function getImageUrl() {
   const img = this.getData('image')
-  return (this.mindMap.renderer.renderTree.data.imgMap || {})[img] || img
+  const treeData =
+    this.mindMap &&
+    this.mindMap.renderer &&
+    this.mindMap.renderer.renderTree
+      ? this.mindMap.renderer.renderTree.data
+      : null
+  const imgMap = (treeData && treeData.imgMap) || {}
+  return imgMap[img] || img
 }
 
 //  创建图片节点

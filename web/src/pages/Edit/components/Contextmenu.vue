@@ -102,6 +102,9 @@
       <div class="item" @click="exec('REMOVE_CUSTOM_STYLES')">
         <span class="name">{{ $t('contextmenu.removeCustomStyles') }}</span>
       </div>
+      <div class="item" @click="openSingleNodeExport">
+        <span class="name">📄 单片导出（节点及子节点）</span>
+      </div>
       <div class="item" @click="exec('EXPORT_CUR_NODE_TO_PNG')">
         <span class="name">{{ $t('contextmenu.exportNodeToPng') }}</span>
       </div>
@@ -421,6 +424,15 @@ export default {
       const text = String(this.node.getData('text') || '')
       return /<table[\s>]/i.test(text)
     },
+    openSingleNodeExport() {
+      const node = this.node
+      this.hide()
+      this.$bus.$emit('showExport', {
+        scope: 'node',
+        node
+      })
+    },
+
     openTableDialog() {
       const node = this.node
       this.hide()

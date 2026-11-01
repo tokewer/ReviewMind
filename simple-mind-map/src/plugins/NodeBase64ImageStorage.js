@@ -76,8 +76,26 @@ class NodeBase64ImageStorage {
       }
     })
 
-    // 删除已无节点引用的图片
-    getImgIds().forEach(id => {
+    // 注意：不应在此处激进删除未引用图片，避免导致：
+    // 1. 剪切节点（CUT）后粘贴时图片丢失
+    // 2. 节点删除后撤回（Ctrl+Z）时图片丢失
+    // 3. 节点放入回收站后恢复时图片丢失
+    // 保留现有 imgMap 项，确保历史回退和恢复流程中图片始终可读可加载
+  }
+
+  // 手动清理无节点引用的图片（仅在显式需要时调用）
+  cleanUnusedImages() {
+    const renderTree = this.mindMap.renderer.renderTree
+    if (!renderTree || !renderTree.data || !renderTree.data.imgMap) return
+    const imgMap = renderTree.data.imgMap
+    const useIds = []
+    walk(renderTree, null, node => {
+      const image = node.data.image
+      if (image && this.isImageKey(image)) {
+        useIds.push(image)
+      }
+    })
+    Object.keys(imgMap).forEach(id => {
       if (!useIds.includes(id)) {
         delete imgMap[id]
       }
