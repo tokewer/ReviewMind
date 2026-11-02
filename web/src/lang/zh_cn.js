@@ -212,7 +212,9 @@ export default {
     ai: 'AI对话',
     downloadClient: '下载客户端',
     site: '官方网站',
-    current: '当前：',
+    current: '当前版本：',
+    appVersion: '应用版本：',
+    engineVersion: '内核版本：',
     downloadDesc: '可从如下地址下载：'
   },
   nodeHyperlink: {

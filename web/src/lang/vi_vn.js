@@ -216,7 +216,9 @@ export default {
     ai: 'Đối thoại AI',
     downloadClient: 'Tải về khách hàng',
     site: 'Trang web chính thức',
-    current: 'Hiện tại:',
+    current: 'Phiên bản: ',
+    appVersion: 'Phiên bản ứng dụng: ',
+    engineVersion: 'Phiên bản lõi: ',
     downloadDesc: 'Có thể download từ địa chỉ sau:'
   },
   nodeHyperlink: {

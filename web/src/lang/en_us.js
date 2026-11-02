@@ -217,7 +217,9 @@ export default {
     ai: 'AI dialogue',
     downloadClient: 'Download client',
     site: 'Official website',
-    current: 'Current:',
+    current: 'Current: ',
+    appVersion: 'App Version: ',
+    engineVersion: 'Core Engine: ',
     downloadDesc: 'You can download it from the following address:'
   },
   nodeHyperlink: {

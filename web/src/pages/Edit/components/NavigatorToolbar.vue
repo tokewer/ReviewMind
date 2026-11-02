@@ -112,11 +112,16 @@
             <span class="el-icon-chat-dot-round"></span>
             {{ $t('navigatorToolbar.issue') || '反馈建议' }}
           </el-dropdown-item>
-          <el-dropdown-item disabled
-            >{{ $t('navigatorToolbar.current') }}v{{
-              version
-            }}</el-dropdown-item
-          >
+          <el-dropdown-item disabled>
+            {{ $t('navigatorToolbar.appVersion') || '应用版本：' }}v{{
+              appVersion
+            }}
+          </el-dropdown-item>
+          <el-dropdown-item disabled style="font-size: 11px; opacity: 0.7; margin-top: -6px;">
+            {{ $t('navigatorToolbar.engineVersion') || '内核版本：' }}v{{
+              engineVersion
+            }}
+          </el-dropdown-item>
         </el-dropdown-menu>
       </el-dropdown>
     </div>
@@ -131,7 +136,8 @@ import { langList } from '@/config'
 import i18n from '@/i18n'
 import { storeLang, getLang } from '@/api'
 import { mapState, mapMutations } from 'vuex'
-import pkg from 'simple-mind-map/package.json'
+import appPkg from '../../../../package.json'
+import enginePkg from 'simple-mind-map/package.json'
 import Demonstrate from './Demonstrate.vue'
 
 // 导航器工具栏
@@ -149,7 +155,9 @@ export default {
   },
   data() {
     return {
-      version: pkg.version,
+      appVersion: appPkg.version || process.env.VUE_APP_VERSION || '1.4.2',
+      engineVersion: enginePkg.version || '0.14.0-fix.3',
+      version: appPkg.version || process.env.VUE_APP_VERSION || '1.4.2',
       langList,
       lang: '',
       openMiniMap: false
