@@ -178,7 +178,6 @@
 <script>
 import { mapState } from 'vuex'
 import ReviewHandwritingBoard from './ReviewHandwritingBoard.vue'
-import ReviewHandwritingBoard from './ReviewHandwritingBoard.vue'
 import {
   rateReview,
   RATING,
@@ -198,9 +197,6 @@ const CARD_TYPE_MAP = {
 
 export default {
   name: 'ReviewQuizDialog',
-  components: {
-    ReviewHandwritingBoard
-  },
   components: {
     ReviewHandwritingBoard
   },

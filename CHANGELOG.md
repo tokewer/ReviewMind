@@ -2,6 +2,12 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.4.4] - 2026-11-06
+
+### Fixed
+- **构建优化与组件引用加固**：
+  - 修复 `ReviewQuizDialog.vue` 中 `ReviewHandwritingBoard` 声明冗余，确保 Webpack 生产构建与打包部署 100% 顺畅。
+
 ## [1.4.3] - 2026-11-06
 
 ### Added
