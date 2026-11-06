@@ -177,6 +177,14 @@
               <div class="critiqueBody">{{ judgeResult.interrogation_critique }}</div>
             </div>
 
+            <!-- SM-2 间隔复习预测标签 -->
+            <div class="sm2ScheduleRow" v-if="judgeResult.sm2">
+              <span class="sm2Icon">📅</span>
+              <span class="sm2Title">SM-2 推荐下次复习：</span>
+              <el-tag size="mini" type="success" effect="dark">{{ judgeResult.sm2.interval }} 天后</el-tag>
+              <span class="sm2Detail">（连续稳固 {{ judgeResult.sm2.repetition }} 次 · 记忆简易度 EF: {{ judgeResult.sm2.easeFactor }}）</span>
+            </div>
+
             <!-- 联动评价快捷操作栏 -->
             <div class="judgeActionRow">
               <el-button
@@ -258,6 +266,7 @@
 </template>
 
 <script>
+import { trackEvent } from '@/utils/analytics'
 import {
   exportOptimizedInk,
   requestHandwritingJudge,
@@ -394,6 +403,9 @@ export default {
     },
 
     handlePointerDown(e) {
+      if (!this.strokes.length) {
+        trackEvent('Handwriting', 'Start_Writing')
+      }
       const canvas = this.$refs.drawCanvas
       canvas.setPointerCapture(e.pointerId)
       this.isDrawing = true
@@ -465,6 +477,60 @@ export default {
       ctx.restore()
     },
 
+    drawMiziGrid(ctx, w, h) {
+      const boxSize = 64
+      const gap = 8
+      const padY = Math.max(10, Math.floor((h - boxSize * 2 - gap) / 2))
+      const cols = Math.floor((w - 16) / (boxSize + gap))
+      const startX = Math.max(8, Math.floor((w - cols * (boxSize + gap) + gap) / 2))
+
+      ctx.save()
+      ctx.lineWidth = 1
+
+      for (let row = 0; row < 2; row++) {
+        const y = padY + row * (boxSize + gap + 10)
+        if (y + boxSize > h - 4) break
+
+        for (let col = 0; col < cols; col++) {
+          const x = startX + col * (boxSize + gap)
+
+          // 1. 外边框 (高考米字格浅淡红细线)
+          ctx.strokeStyle = '#f4d6d6'
+          ctx.setLineDash([])
+          ctx.strokeRect(x, y, boxSize, boxSize)
+
+          // 2. 内部十字线与对角线 (虚线)
+          ctx.strokeStyle = '#faeaea'
+          ctx.setLineDash([3, 3])
+
+          // 水平中线
+          ctx.beginPath()
+          ctx.moveTo(x, y + boxSize / 2)
+          ctx.lineTo(x + boxSize, y + boxSize / 2)
+          ctx.stroke()
+
+          // 垂直中线
+          ctx.beginPath()
+          ctx.moveTo(x + boxSize / 2, y)
+          ctx.lineTo(x + boxSize / 2, y + boxSize)
+          ctx.stroke()
+
+          // 对角线 1
+          ctx.beginPath()
+          ctx.moveTo(x, y)
+          ctx.lineTo(x + boxSize, y + boxSize)
+          ctx.stroke()
+
+          // 对角线 2
+          ctx.beginPath()
+          ctx.moveTo(x + boxSize, y)
+          ctx.lineTo(x, y + boxSize)
+          ctx.stroke()
+        }
+      }
+      ctx.restore()
+    },
+
     redrawAllStrokes() {
       const canvas = this.$refs.drawCanvas
       if (!canvas) return
@@ -477,16 +543,8 @@ export default {
       ctx.fillStyle = '#ffffff'
       ctx.fillRect(0, 0, w, h)
 
-      // 绘制淡灰色默写基准线（仿高考答题卡横格）
-      ctx.strokeStyle = '#eef1f6'
-      ctx.lineWidth = 1
-      const lineSpacing = 50
-      for (let y = lineSpacing; y < h; y += lineSpacing) {
-        ctx.beginPath()
-        ctx.moveTo(0, y)
-        ctx.lineTo(w, y)
-        ctx.stroke()
-      }
+      // 绘制高考答题卡典雅米字格底纹
+      this.drawMiziGrid(ctx, w, h)
       ctx.restore()
 
       // 重新绘制所有笔画
@@ -613,7 +671,7 @@ export default {
       const uid = this.node ? this.node.uid : null
 
       if (uid) {
-        applyJudgeRating(uid, this.judgeResult)
+        applyJudgeRating(uid, this.judgeResult, this.card)
       }
 
       this.$emit('rate', rating)
@@ -1043,6 +1101,30 @@ export default {
         font-size: 13px;
         line-height: 1.6;
         color: #303133;
+      }
+    }
+
+    .sm2ScheduleRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      background: #f0f9eb;
+      border: 1px solid #e1f3d8;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-bottom: 14px;
+
+      .sm2Icon {
+        font-size: 16px;
+      }
+      .sm2Title {
+        font-weight: 600;
+        color: #67c23a;
+      }
+      .sm2Detail {
+        font-size: 12px;
+        color: #909399;
       }
     }
 

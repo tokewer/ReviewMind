@@ -6,6 +6,7 @@ import {
   normalizeJudgeResult,
   mapJudgeGradeToRating,
   applyJudgeRating,
+  calculateSm2Schedule,
   exportOptimizedInk
 } from '../web/src/review/handwritingJudge'
 import {
@@ -14,6 +15,10 @@ import {
   getNode,
   importReviewData
 } from '../web/src/review/index'
+import {
+  isDevOrLocal,
+  trackEvent
+} from '../web/src/utils/analytics'
 
 describe('高中语文理解性默写·高精度审判考官测试套件 (Gaokao Handwriting Judge)', () => {
   beforeEach(() => {
@@ -95,7 +100,38 @@ describe('高中语文理解性默写·高精度审判考官测试套件 (Gaokao
     expect(mapJudgeGradeToRating(-1)).toBe(RATING.FORGOT)
   })
 
-  test('applyJudgeRating 驱动节点间隔调度并沉淀错别字薄弱点', () => {
+  test('calculateSm2Schedule 正确执行 SM-2 衍生间隔与简易度计算', () => {
+    // 初始状态
+    const initCard = { interval: 1, repetition: 0, easeFactor: 2.5 }
+
+    // 第 1 次完全正确 (grade = 3)
+    const step1 = calculateSm2Schedule(initCard, 3)
+    expect(step1.repetition).toBe(1)
+    expect(step1.interval).toBe(1)
+    expect(step1.easeFactor).toBeGreaterThanOrEqual(2.5)
+
+    // 第 2 次完全正确 (grade = 3)
+    const step2 = calculateSm2Schedule(step1, 3)
+    expect(step2.repetition).toBe(2)
+    expect(step2.interval).toBe(6)
+
+    // 第 3 次完全正确 (grade = 3) -> interval = 6 * 2.6 = 16
+    const step3 = calculateSm2Schedule(step2, 3)
+    expect(step3.repetition).toBe(3)
+    expect(step3.interval).toBeGreaterThan(6)
+
+    // 遭遇错别字 (grade = 1) -> repetition 重置为 0，interval 归为 1 天高频复现
+    const failedStep = calculateSm2Schedule(step3, 1)
+    expect(failedStep.repetition).toBe(0)
+    expect(failedStep.interval).toBe(1)
+
+    // 答非所问 (grade = 0) -> 同样重置
+    const zeroStep = calculateSm2Schedule(step3, 0)
+    expect(zeroStep.repetition).toBe(0)
+    expect(zeroStep.interval).toBe(1)
+  })
+
+  test('applyJudgeRating 驱动节点间隔调度并沉淀错别字薄弱点与 SM-2 数据', () => {
     const node = addReview({
       uid: 'test_node_gaokao',
       name: '《归园田居（其一）》',
@@ -117,7 +153,11 @@ describe('高中语文理解性默写·高精度审判考官测试套件 (Gaokao
       interrogation_critique: '羁字必须牢记网马革结构！'
     }
 
-    const { rating, node: updatedNode } = applyJudgeRating(node.uid, judgeResult)
+    const { rating, node: updatedNode, sm2 } = applyJudgeRating(node.uid, judgeResult, {
+      interval: 4,
+      repetition: 2,
+      easeFactor: 2.5
+    })
     expect(rating).toBe(RATING.FUZZY)
     expect(updatedNode.times).toBe(1)
     expect(updatedNode.errorCount).toBe(1)
@@ -127,9 +167,21 @@ describe('高中语文理解性默写·高精度审判考官测试套件 (Gaokao
     // 沉淀最近审判记录
     expect(updatedNode.lastJudgeResult.grade).toBe(1)
     expect(updatedNode.lastJudgeResult.critique).toContain('网马革')
+    // SM-2 调度记录
+    expect(sm2.interval).toBe(1)
+    expect(sm2.repetition).toBe(0)
   })
 
   test('exportOptimizedInk 针对空画布或无效对象安全返回 null', () => {
     expect(exportOptimizedInk(null)).toBeNull()
+  })
+
+  test('百度统计与开发环境隔离验证 (Analytics)', () => {
+    // 在 Node / 测试环境下应当处于开发隔离状态
+    expect(isDevOrLocal()).toBe(true)
+
+    // 调用 trackEvent 在开发模式下安全返回 false 且不抛错
+    const tracked = trackEvent('Handwriting', 'Start_Writing')
+    expect(tracked).toBe(false)
   })
 })

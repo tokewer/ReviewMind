@@ -1,5 +1,6 @@
 // ReviewMind 高中语文理解性默写·高精度审判考官服务模块
 import { RATING, rateReview } from './index'
+import { trackEvent } from '@/utils/analytics'
 
 export const GAOKAO_JUDGE_SYSTEM_PROMPT = `# Role: ReviewMind 高中语文理解性默写·高精度审判考官
 
@@ -96,10 +97,13 @@ export function saveJudgeAiConfig(config) {
 
 /**
  * 从 Canvas 提取并裁剪墨迹，输出高清晰度、无死角白底的 Base64 图像
+ * 优化策略：计算最小包围盒外扩 24px，默认按 600px 宽度及 0.75 质量压缩，严格平衡字符辨识度与 token 体积
  * @param {HTMLCanvasElement} canvas - 数位板绑定的主 Canvas
+ * @param {number} [targetWidth=600] - 归一化输出宽度限制 (px)
+ * @param {number} [quality=0.75] - JPEG 压缩质量
  * @returns {string|null} 裁剪后的 Base64 DataURL (image/jpeg)；若为空画布则返回 null
  */
-export function exportOptimizedInk(canvas) {
+export function exportOptimizedInk(canvas, targetWidth = 600, quality = 0.75) {
   if (!canvas) return null
   const ctx = canvas.getContext('2d')
   if (!ctx) return null
@@ -112,8 +116,7 @@ export function exportOptimizedInk(canvas) {
   try {
     imgData = ctx.getImageData(0, 0, width, height)
   } catch (e) {
-    // 跨域或安全受限时降级为直接导出
-    return canvas.toDataURL('image/jpeg', 0.95)
+    return canvas.toDataURL('image/jpeg', quality)
   }
 
   const data = imgData.data
@@ -157,24 +160,31 @@ export function exportOptimizedInk(canvas) {
   const cropW = Math.max(1, maxX - minX)
   const cropH = Math.max(1, maxY - minY)
 
+  // 按目标宽度（如 600px）等比缩放
+  const scale = targetWidth && cropW > targetWidth ? targetWidth / cropW : 1
+  const outW = Math.max(1, Math.round(cropW * scale))
+  const outH = Math.max(1, Math.round(cropH * scale))
+
   // 2. 绘制到离屏 Canvas 并注入纯白底色（防止透明背景在模型中转为黑底）
   const offscreen = document.createElement('canvas')
-  offscreen.width = cropW
-  offscreen.height = cropH
+  offscreen.width = outW
+  offscreen.height = outH
   const offCtx = offscreen.getContext('2d')
 
   // 纯白背景
   offCtx.fillStyle = '#FFFFFF'
-  offCtx.fillRect(0, 0, cropW, cropH)
+  offCtx.fillRect(0, 0, outW, outH)
 
-  // 绘制裁剪后的墨迹
-  offCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, cropW, cropH)
+  // 平滑绘制墨迹
+  offCtx.imageSmoothingEnabled = true
+  offCtx.imageSmoothingQuality = 'high'
+  offCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, outW, outH)
 
-  return offscreen.toDataURL('image/jpeg', 0.95)
+  return offscreen.toDataURL('image/jpeg', quality)
 }
 
 /**
- * 发起考官审判请求
+ * 发起考官审判请求并联动埋点
  * @param {Object} options
  * @param {string} options.imageBase64 - 手写墨迹图 base64
  * @param {string} options.prompt - 题干情境描述
@@ -198,6 +208,10 @@ export async function requestHandwritingJudge({
   if (!imageBase64) {
     throw new Error('未检测到任何手写墨迹，请先在数位板上书写作答！')
   }
+
+  // 埋点：点击提交作答
+  const startTime = Date.now()
+  trackEvent('Submission', 'Submit_Answer', source || prompt)
 
   const promptContent = [
     {
@@ -277,6 +291,11 @@ export async function requestHandwritingJudge({
 
   // 格式归一化与防御
   const normalized = normalizeJudgeResult(evaluation, standardAnswer)
+
+  // 埋点：AI 判定完成
+  const durationMs = Date.now() - startTime
+  trackEvent('AI_Grading', normalized.error_type, `grade_${normalized.grade}`, durationMs)
+
   return normalized
 }
 
@@ -348,29 +367,75 @@ export function mapJudgeGradeToRating(grade) {
 }
 
 /**
- * 执行评价并自动记录考官错字与审判日志
+ * SM-2 衍生间隔复习算法计算器
+ * @param {Object} cardData - 卡片当前状态 { interval, repetition, easeFactor }
+ * @param {number} grade - 考官评级 (0, 1, 2, 3)
  */
-export function applyJudgeRating(uid, judgeResult) {
+export function calculateSm2Schedule({ interval = 1, repetition = 0, easeFactor = 2.5 } = {}, grade = 0) {
+  let newRepetition = Number(repetition) || 0
+  let newInterval = Number(interval) || 1
+  let newEaseFactor = typeof easeFactor === 'number' ? easeFactor : 2.5
+
+  if (grade >= 2) {
+    newRepetition += 1
+    if (newRepetition === 1) {
+      newInterval = 1
+    } else if (newRepetition === 2) {
+      newInterval = 6
+    } else {
+      newInterval = Math.round(newInterval * newEaseFactor)
+    }
+    // SM-2 简易度因子动态调整 (限制下限 1.3)
+    newEaseFactor = Math.max(1.3, newEaseFactor + (0.1 - (3 - grade) * (0.08 + (3 - grade) * 0.02)))
+  } else {
+    // 错别字或答非所问：立即重置连续成功次数，间隔归回到 1 天高频复现
+    newRepetition = 0
+    newInterval = 1
+  }
+
+  const nextReviewDate = Date.now() + newInterval * 86400000
+
+  return {
+    interval: newInterval,
+    repetition: newRepetition,
+    easeFactor: Number(newEaseFactor.toFixed(2)),
+    nextReviewDate
+  }
+}
+
+/**
+ * 执行评价并自动记录考官错字、SM-2 调度与审判日志
+ */
+export function applyJudgeRating(uid, judgeResult, cardData = null) {
   if (!uid || !judgeResult) return null
   const rating = mapJudgeGradeToRating(judgeResult.grade)
   const updatedNode = rateReview(uid, rating)
 
-  // 若存在错别字，沉淀到节点的 weakChars 集合
-  if (updatedNode && judgeResult.error_details && Array.isArray(judgeResult.error_details.wrong_chars)) {
-    updatedNode.weakChars = updatedNode.weakChars || []
-    judgeResult.error_details.wrong_chars.forEach(item => {
-      if (item && item.expected && !updatedNode.weakChars.includes(item.expected)) {
-        updatedNode.weakChars.push(item.expected)
-      }
-    })
+  // 计算 SM-2 衍生调度参数
+  const sm2Data = calculateSm2Schedule(cardData || {}, judgeResult.grade)
+
+  // 埋点：更新调度
+  trackEvent('ReviewMind', 'Update_Interval', rating, sm2Data.interval)
+
+  if (updatedNode) {
+    updatedNode.sm2Schedule = sm2Data
+    if (judgeResult.error_details && Array.isArray(judgeResult.error_details.wrong_chars)) {
+      updatedNode.weakChars = updatedNode.weakChars || []
+      judgeResult.error_details.wrong_chars.forEach(item => {
+        if (item && item.expected && !updatedNode.weakChars.includes(item.expected)) {
+          updatedNode.weakChars.push(item.expected)
+        }
+      })
+    }
     updatedNode.lastJudgeResult = {
       date: new Date().toISOString(),
       grade: judgeResult.grade,
       error_type: judgeResult.error_type,
       critique: judgeResult.interrogation_critique,
-      extracted_text: judgeResult.extracted_text
+      extracted_text: judgeResult.extracted_text,
+      sm2: sm2Data
     }
   }
 
-  return { rating, node: updatedNode }
+  return { rating, node: updatedNode, sm2: sm2Data }
 }
