@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :visible.sync="visible"
-    width="680px"
+    width="760px"
     :append-to-body="true"
     :close-on-click-modal="false"
     :custom-class="'reviewQuizDialog' + (isDark ? ' isDark' : '')"
@@ -125,6 +125,15 @@
         </transition>
       </div>
 
+      <!-- 数位板手写默写与高考高精度审判考官 -->
+      <ReviewHandwritingBoard
+        :card="activeCard"
+        :node="currentReview"
+        :isDark="isDark"
+        @reveal-answer="showAnswer = true"
+        @rate="onHandwritingJudgeRate"
+      />
+
       <!-- 操作面板：揭示前先回忆，揭示后四级评价 -->
       <div class="actionBox">
         <div v-if="!showAnswer" class="unrevealedState">
@@ -168,6 +177,8 @@
 
 <script>
 import { mapState } from 'vuex'
+import ReviewHandwritingBoard from './ReviewHandwritingBoard.vue'
+import ReviewHandwritingBoard from './ReviewHandwritingBoard.vue'
 import {
   rateReview,
   RATING,
@@ -187,6 +198,12 @@ const CARD_TYPE_MAP = {
 
 export default {
   name: 'ReviewQuizDialog',
+  components: {
+    ReviewHandwritingBoard
+  },
+  components: {
+    ReviewHandwritingBoard
+  },
   data() {
     return {
       visible: false,
@@ -324,6 +341,14 @@ export default {
         this.currentCardIndex += 1
         this.showAnswer = false
       }
+    },
+
+    onHandwritingJudgeRate(rating) {
+      this.rate(rating)
+    },
+
+    onHandwritingJudgeRate(rating) {
+      this.rate(rating)
     },
 
     rate(rating) {

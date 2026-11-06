@@ -2,6 +2,30 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.4.3] - 2026-11-06
+
+### Added
+- **全新「高考语文理解性默写·高精度审判考官」与数位板手写默写系统**：
+  - **数位板真实墨迹书写与高质量提取 (`ReviewHandwritingBoard.vue`)**：
+    - 集成高精度手写板，支持触控笔/数位板压感（PointerEvent pressure）、平滑笔迹曲线插值（二次贝塞尔插值）、田字格/横格答题卡底纹。
+    - 提供钢笔/橡皮擦双模式、三档笔画粗细调节、经典黑/墨蓝/玄青多色选择、笔画单步撤回与一键清空。
+    - **独创墨迹有效边界裁剪 (`exportOptimizedInk`)**：自动计算墨迹最小包围盒（Bounding Box）并外扩 24px 留白，统一填充纯白背景（杜绝透明通道在 Vision 模型中黑底隐形缺陷），输出高质量文字墨迹。
+  - **高考考纲零容忍级 AI 审判系统 (`handwritingJudge.js`)**：
+    - 接入多模态视觉大模型（强制 `detail: "high"`、`temperature: 0.0`），保证复杂生僻字（如“羁/革/马”、“沧/苍”、“幽壑/幽鹤”）笔画部件清晰可见，输出结构化 JSON 审判。
+    - 精准定位失分类型：`WRONG_CHARACTER`（错别字扣分）、`OMISSION_ADDITION`（漏字/添字/语序颠倒）、`CONTEXT_MISMATCH`（答非所问/偏离情境）、`BLANK_OR_UNRECOGNIZED`（空白或字迹无法辨认）。
+    - 呈现**字符级红绿对照（Diff Analysis）**、**错别字部件深度归因**、**题干情境对应分析**与**高考阅卷人冷峻评语及记忆锚点**。
+  - **ReviewMind 间隔复习算法无缝闭环与错题沉淀**：
+    - 考官得分评级智能映射 ReviewMind 原生四级艾宾浩斯调度：
+      - `3` (Pass) -> 🌟 熟练 (`MASTERED`)
+      - `2` (Hard) -> ✅ 记得 (`REMEMBER`)
+      - `1` (Again_Mistake) -> 🤔 模糊 (`FUZZY`)
+      - `0` (Again_Failed) -> 😰 忘记 (`FORGOT`)
+    - 支持一键“采纳考官评价并推进下一题”，自动将审判识别出的错字沉淀至知识点节点的 `weakChars` 薄弱点集合，形成复习记忆档案。
+  - **全场景复习入口覆盖**：
+    - 主界面知识拷问弹窗（`ReviewQuizDialog.vue`）与独立复习中心全屏流（`Review/Index.vue`）均已无缝嵌入。
+  - **自动化测试保障**：
+    - 新增 `tests/handwriting_judge.test.js` 测试套件，覆盖系统提示词、配置持久化、结果归一化、调度映射与错字沉淀，50 项测试 100% 通过。
+
 ## [1.4.2] - 2026-11-02
 
 ### Fixed

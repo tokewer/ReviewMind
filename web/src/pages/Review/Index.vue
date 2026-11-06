@@ -4,7 +4,7 @@
       <div class="left">
         <div style="display: flex; align-items: center; gap: 8px;">
           <h2>复习中心</h2>
-          <el-tag size="mini" type="info">v1.4.2</el-tag>
+          <el-tag size="mini" type="info">v1.4.3</el-tag>
         </div>
         <span class="date">{{ today }}</span>
       </div>
@@ -105,6 +105,15 @@
                 </div>
               </transition>
             </div>
+
+            <!-- 数位板手写默写与高考高精度审判考官 -->
+            <ReviewHandwritingBoard
+              :card="activeCard"
+              :node="currentReview"
+              :isDark="isDark"
+              @reveal-answer="showAnswer = true"
+              @rate="onHandwritingJudgeRate"
+            />
 
             <!-- 阶段控制：未揭示答案前明确提示先回忆；揭示答案后显示四级评价 -->
             <div class="actionPanel">
@@ -856,6 +865,7 @@ import {
   subscribeReviewSync
 } from '@/review'
 import CardManagerDialog from '@/pages/Edit/components/CardManagerDialog.vue'
+import ReviewHandwritingBoard from '@/pages/Edit/components/ReviewHandwritingBoard.vue'
 import {
   REVIEW_ACTION_DEFS,
   getReviewShortcutConfig,
@@ -908,6 +918,7 @@ const CARD_TYPE_MAP = {
 export default {
   name: 'ReviewPage',
   components: {
+    ReviewHandwritingBoard,
     CardManagerDialog
   },
   data() {
@@ -1472,6 +1483,14 @@ export default {
     },
 
     // 四级评价提交 (忘记、模糊、记得、熟练)
+    onHandwritingJudgeRate(rating) {
+      this.rate(rating)
+    },
+
+    onHandwritingJudgeRate(rating) {
+      this.rate(rating)
+    },
+
     rate(rating) {
       if (this.isSubmittingRate) return
       if (!this.showAnswer) {
