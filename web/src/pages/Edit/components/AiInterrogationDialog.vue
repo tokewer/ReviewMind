@@ -13,7 +13,7 @@
       <div class="globalTopHeader">
         <div class="leftMeta">
           <el-tag size="small" :type="selectedMode === 'memory' ? 'warning' : 'primary'" effect="dark">
-            {{ selectedMode === 'memory' ? '📖 内容记忆模式' : '🔍 内容理解模式' }}
+            {{ selectedMode === 'memory' ? '⚔️ 模式1：有什么·是什么 (高考直接主力军)' : '🛡️ 模式2：为什么·为了什么 (高考理解后勤部)' }}
           </el-tag>
           <span class="targetBadge" v-if="viewState !== 'setup'">
             🎯 目标：<strong>{{ targetScope === 'all' ? '全图宏观知识网络' : (selectedNodeSummary ? selectedNodeSummary.text : '指定分支') }}</strong>
@@ -140,45 +140,47 @@
           </div>
 
           <div class="modeCardsGrid">
-            <!-- 模式 1：内容记忆 -->
+            <!-- 模式 1：有什么、是什么（高考直接主力军） -->
             <div
               class="modeCard"
               :class="{ active: selectedMode === 'memory' }"
               @click="selectedMode = 'memory'"
             >
-              <div class="cardBadge">注重理解促记忆</div>
+              <div class="cardBadge">高考直接主力军</div>
               <div class="cardHeader">
-                <span class="modeIcon">📖</span>
-                <span class="modeName">内容记忆模式</span>
+                <span class="modeIcon">⚔️</span>
+                <span class="modeName">模式一：有什么、是什么</span>
               </div>
               <p class="modeDesc">
-                帮我记忆内容：英语作文素材/高级句型、语文古诗文名句默写、各学科核心背诵考点。去答案化转化为设问导图。
+                高考直接主力军（直接考查、直接拿分）：考查核心知识点清单、定义、特征、名篇名句默写、公式定理概念。去答案化转化为设问导图。
               </p>
               <div class="modeFeatures">
-                <span class="featItem">💡 以语境理解驱动记忆</span>
-                <span class="featItem">🖋️ 仅易错难写字激活手写</span>
+                <span class="featItem">🎯 所有内容必须为高考服务，严禁超纲</span>
+                <span class="featItem">📋 重点考查【有什么】与【是什么】</span>
+                <span class="featItem">🖋️ 仅易错难写字激活手写（普通免练）</span>
                 <span class="featItem">💭 支持心中默答自评</span>
               </div>
             </div>
 
-            <!-- 模式 2：内容理解 -->
+            <!-- 模式 2：为什么、为了什么（高考理解后勤部） -->
             <div
               class="modeCard"
               :class="{ active: selectedMode === 'understanding' }"
               @click="selectedMode = 'understanding'"
             >
-              <div class="cardBadge">四维复盘透视</div>
+              <div class="cardBadge">高考理解后勤部</div>
               <div class="cardHeader">
-                <span class="modeIcon">🔍</span>
-                <span class="modeName">内容理解模式</span>
+                <span class="modeIcon">🛡️</span>
+                <span class="modeName">模式二：为什么、为了什么</span>
               </div>
               <p class="modeDesc">
-                围绕【有哪些、是什么、为什么、为了什么】知识点四维深度复盘提问，纯思维逻辑推演。
+                高考理解后勤部（综合大题后盾）：围绕深层成因机理【为什么】、本质意图与工具价值【为了什么】发起深度复盘，为大题综合推导演绎提供坚实后盾。
               </p>
               <div class="modeFeatures">
-                <span class="featItem">📐 四大认知维度循序渐进</span>
-                <span class="featItem">⌨️ 纯思维推导，免练手写</span>
-                <span class="featItem">🧠 直击本质与因果机理</span>
+                <span class="featItem">🎯 服务高考大题逻辑，拒绝无益超纲</span>
+                <span class="featItem">🧠 专攻【为什么】与【为了什么】</span>
+                <span class="featItem">⌨️ 纯思维推导与默答，免练手写</span>
+                <span class="featItem">💡 破除死记硬背，透视解题本质</span>
               </div>
             </div>
 
@@ -203,7 +205,7 @@
         <!-- 规则快速提示栏 -->
         <div class="rulesQuickHint">
           <span class="hintIcon">📋</span>
-          <span class="hintText">当前已载入规则与工作流：注重理解、生僻字定向手写、AI不自动篡改复习安排。</span>
+          <span class="hintText">当前已载入规则：所有内容必须为高考服务（不考察过度超纲内容）、模式1考有什么是什么、模式2考为什么为了什么。</span>
           <el-button type="text" size="mini" @click="openRulesDrawer">点击自定义修改规则与工作流 ➔</el-button>
         </div>
 
@@ -226,18 +228,41 @@
 
       <!-- ================= 阶段 1：交互拷问进行中 (窗口思维导图双屏联动) ================= -->
       <div v-if="viewState === 'quiz'" class="quizWorkspace">
-        <!-- 上半区：窗口内交互式思维导图画布 (去答案变问题，支持实时动态翻牌) -->
+        <!-- 上半区：窗口内交互式思维导图画布 (实时显示复习进度：颜色与图标联动) -->
         <div class="mindMapCanvasSection">
           <div class="canvasHeaderBar">
-            <div class="canvasTitle">
-              <span class="icon">🗺️</span>
-              <strong>拷问思维导图（已去答案变设问）</strong>
-              <span class="subInfo">点击上方任意 ❓ 节点即可切换作答；答对或揭晓后节点自动翻牌变绿 ✅</span>
+            <div class="canvasTopRow">
+              <div class="canvasTitle">
+                <span class="icon">🗺️</span>
+                <strong>拷问思维导图</strong>
+                <span class="subInfo">节点实时显示复习进度（颜色与图标联动）</span>
+              </div>
+              <!-- 进度统计仪表盘 -->
+              <div class="progressStatsBar">
+                <span class="statItem total">总设问: {{ questionNodeList.length }} 题</span>
+                <span class="statItem mastered">🌟 熟练: {{ statusCounts.mastered }}</span>
+                <span class="statItem remembered">✅ 记得: {{ statusCounts.remembered }}</span>
+                <span class="statItem fuzzy">🤔 模糊: {{ statusCounts.fuzzy }}</span>
+                <span class="statItem forgot">❌ 忘记: {{ statusCounts.forgot }}</span>
+                <span class="statItem pending">🟡 待考: {{ statusCounts.pending }}</span>
+              </div>
             </div>
+
+            <!-- 实时复习进度条 -->
+            <div class="progressBarWrapper">
+              <div class="progressOuter">
+                <div class="progressInner" :style="{ width: quizProgressPercent + '%' }"></div>
+              </div>
+              <span class="progressPercentText">{{ quizProgressPercent }}% 已复习</span>
+            </div>
+
+            <!-- 图标与颜色图例 -->
             <div class="canvasLegend">
-              <span class="legendItem"><span class="dot question"></span> 待考查设问</span>
-              <span class="legendItem"><span class="dot passed"></span> 已过关/翻牌</span>
-              <span class="legendItem"><span class="dot active"></span> 当前聚焦</span>
+              <span class="legendItem"><span class="dot active"></span> 🎯 当前考查</span>
+              <span class="legendItem"><span class="dot pending"></span> ❓ 待考查</span>
+              <span class="legendItem"><span class="dot remembered"></span> ✅ 记得/🌟熟练</span>
+              <span class="legendItem"><span class="dot fuzzy"></span> 🤔 模糊需巩固</span>
+              <span class="legendItem"><span class="dot forgot"></span> ❌ 忘记待攻克</span>
             </div>
           </div>
 
@@ -249,22 +274,46 @@
         <div class="quizConsoleSection">
           <!-- 考题展示卡片 -->
           <div v-if="currentQuiz" class="questionCard">
-            <div class="qHeader">
-              <el-tag size="mini" type="primary">
-                {{ currentQuiz.dimension_name || (selectedMode === 'memory' ? '内容记忆' : '深度理解') }}
-              </el-tag>
-              <span class="qTargetNode">📌 聚焦导图节点：<strong>{{ currentQuiz.target_node_text }}</strong></span>
-              <span class="qProgressBadge">进度：{{ currentQuestionIndex + 1 }} / {{ questionNodeList.length }}</span>
+            <!-- 考查方向与细分领域透视（明确考哪方面，绝不显示答案） -->
+            <div class="aspectInsightBox">
+              <div class="aspectRow">
+                <span class="aspectBadge modeBadge">
+                  {{ selectedMode === 'memory' ? '⚔️ 模式一：有什么·是什么 (高考直接主力军)' : '🛡️ 模式二：为什么·为了什么 (高考理解后勤部)' }}
+                </span>
+                <span class="aspectBadge dimBadge">
+                  📌 核心维度：【{{ currentQuiz.dimension_name }}】
+                </span>
+                <span class="aspectBadge subBadge">
+                  🎯 细分考查方向：{{ currentQuiz.aspect_subdivision }}
+                </span>
+              </div>
+              <div class="domainPathRow" v-if="currentQuiz.aspect_domain">
+                <span class="domainLabel">🗺️ 知识体系定位：</span>
+                <span class="domainPath">{{ currentQuiz.aspect_domain }}</span>
+              </div>
             </div>
+
+            <div class="qHeader">
+              <div class="qTargetNode">
+                <strong>📌 考点名称：【{{ currentQuiz.target_node_text }}】</strong>
+              </div>
+              <div class="qProgressBadge">
+                第 {{ currentQuestionIndex + 1 }} / {{ questionNodeList.length }} 题
+              </div>
+            </div>
+
+            <!-- 具体考查题干（不透露答案） -->
             <div class="qText">
               {{ currentQuiz.question }}
             </div>
-            <div v-if="currentQuiz.understanding_hint" class="qHint">
-              <span class="hintIcon">💡 思考引导支架：</span>
+
+            <!-- 思考支架与切入方向提示（无答案，提供解题思路） -->
+            <div v-if="currentQuiz.understanding_hint && !isAnswerRevealed" class="qHint">
+              <span class="hintIcon">💡 思考切入点：</span>
               <span class="hintContent">{{ currentQuiz.understanding_hint }}</span>
+              <span class="secureMaskTag">🔒（标准答案已安全遮蔽）</span>
             </div>
           </div>
-
           <!-- 作答形式切换栏 -->
           <div class="answerMethodBar">
             <span class="barLabel">作答方式：</span>
@@ -501,30 +550,30 @@
         />
 
         <el-form label-position="top" size="small">
-          <el-form-item label="📖 【内容记忆模式】系统规则与提示词（可自由编辑追加）：">
+          <el-form-item label="⚔️ 【模式一：有什么、是什么（高考直接主力军）】系统规则与提示词：">
             <el-input
               type="textarea"
               :rows="4"
               v-model="rulesForm.memoryCustomRules"
-              placeholder="请输入内容记忆模式的考查规则..."
+              placeholder="请输入模式一（有什么、是什么）考查规则..."
             ></el-input>
           </el-form-item>
 
-          <el-form-item label="🔍 【内容理解模式】系统规则与提示词（可自由编辑追加）：">
+          <el-form-item label="🛡️ 【模式二：为什么、为了什么（高考理解后勤部）】系统规则与提示词：">
             <el-input
               type="textarea"
               :rows="4"
               v-model="rulesForm.understandingCustomRules"
-              placeholder="请输入内容理解模式的考查规则..."
+              placeholder="请输入模式二（为什么、为了什么）考查规则..."
             ></el-input>
           </el-form-item>
 
-          <el-form-item label="🎯 自定义学科/场景附加指令（如：针对高考英语注重同义替换、针对物理注重受力分析）：">
+          <el-form-item label="🎯 高考导向附加指令（默认：所有内容必须为高考服务，不需要复习、考察过度超纲）：">
             <el-input
               type="textarea"
               :rows="3"
               v-model="rulesForm.customExtraInstructions"
-              placeholder="输入针对您当前科目的定制要求..."
+              placeholder="输入针对您当前科目的高考定制要求..."
             ></el-input>
           </el-form-item>
 
@@ -643,7 +692,37 @@ export default {
     this.$bus.$off('showAiInterrogation')
     this.destroyQuizMindMap()
   },
+  watch: {
+    isFullscreen() {
+      this.$nextTick(() => {
+        setTimeout(() => {
+          if (this.quizMindMapInstance) {
+            this.quizMindMapInstance.resize()
+            this.quizMindMapInstance.fit()
+          }
+        }, 150)
+      })
+    }
+  },
   computed: {
+    answeredCount() {
+      return (this.questionNodeList || []).filter(
+        n => n.data && n.data.status && n.data.status !== 'pending' && n.data.status !== 'active'
+      ).length
+    },
+    quizProgressPercent() {
+      if (!this.questionNodeList || !this.questionNodeList.length) return 0
+      return Math.round((this.answeredCount / this.questionNodeList.length) * 100)
+    },
+    statusCounts() {
+      const counts = { mastered: 0, remembered: 0, fuzzy: 0, forgot: 0, pending: 0, active: 0 }
+      for (const node of this.questionNodeList || []) {
+        const s = node.data?.status || 'pending'
+        if (counts[s] !== undefined) counts[s]++
+        else counts.pending++
+      }
+      return counts
+    },
     dialogTitle() {
       if (this.viewState === 'setup') return '🧠 AI 深度拷问系统 · 模式与知识靶向设置'
       if (this.viewState === 'quiz') return '🧠 AI 深度拷问系统 · 窗口思维导图交互工作台'
@@ -843,30 +922,51 @@ export default {
       const el = this.$refs.quizMindMapRef
       if (!el) return
 
-      try {
-        this.quizMindMapInstance = new MindMap({
-          el,
-          data: JSON.parse(JSON.stringify(treeRoot)),
-          readonly: true,
-          fit: true,
-          layout: 'logicalStructure',
-          theme: 'classicGreen',
-          enableAutoEnterTextEditWhenKeydown: false,
-          nodeTextEditZIndex: 10,
-          nodeNoteTooltipZIndex: 10
-        })
+      const tryInit = (retryCount = 0) => {
+        if (!this.$refs.quizMindMapRef) return
+        const container = this.$refs.quizMindMapRef
+        const rect = container.getBoundingClientRect()
+        // 防御：若当前元素宽高未准备好，每 50ms 重试一次（最多 12 次）
+        if ((rect.width <= 0 || rect.height <= 0) && retryCount < 12) {
+          setTimeout(() => tryInit(retryCount + 1), 50)
+          return
+        }
 
-        this.quizMindMapInstance.on('node_click', (node) => {
-          if (node && node.nodeData && node.nodeData.data) {
-            const idx = node.nodeData.data.quizIndex
-            if (typeof idx === 'number' && idx >= 0 && idx < this.questionNodeList.length) {
-              this.loadQuestionAtIndex(idx)
+        try {
+          this.quizMindMapInstance = new MindMap({
+            el: container,
+            data: JSON.parse(JSON.stringify(treeRoot)),
+            readonly: true,
+            fit: true,
+            layout: 'logicalStructure',
+            theme: 'classicGreen',
+            enableAutoEnterTextEditWhenKeydown: false,
+            nodeTextEditZIndex: 10,
+            nodeNoteTooltipZIndex: 10
+          })
+
+          this.quizMindMapInstance.on('node_click', (node) => {
+            if (node && node.nodeData && node.nodeData.data) {
+              const idx = node.nodeData.data.quizIndex
+              if (typeof idx === 'number' && idx >= 0 && idx < this.questionNodeList.length) {
+                this.loadQuestionAtIndex(idx)
+              }
             }
-          }
-        })
-      } catch (err) {
-        console.warn('初始化窗口导图失败:', err)
+          })
+
+          setTimeout(() => {
+            if (this.quizMindMapInstance) {
+              this.quizMindMapInstance.resize()
+              this.quizMindMapInstance.fit()
+              this.syncActiveNodeToMindMap(this.currentQuestionIndex)
+            }
+          }, 100)
+        } catch (err) {
+          console.error('初始化窗口导图失败:', err)
+        }
       }
+
+      tryInit()
     },
     destroyQuizMindMap() {
       if (this.quizMindMapInstance) {
@@ -894,7 +994,10 @@ export default {
       this.currentQuiz = {
         target_node_id: data.uid || data.id || `quiz_node_${index}`,
         target_node_text: data.target_node_text || data.text || '考查概念',
-        dimension_name: data.dimension_name || '',
+        dimension: data.dimension || (this.selectedMode === 'memory' ? 'what' : 'why'),
+        dimension_name: data.dimension_name || (this.selectedMode === 'memory' ? '是什么' : '为什么'),
+        aspect_domain: data.aspect_domain || '主干知识网络',
+        aspect_subdivision: data.aspect_subdivision || (this.selectedMode === 'memory' ? '高考核心概念定理 · 本质定义与规范表述' : '深层因果机制链条 · 成立机理深度复盘'),
         question: data.question_title || data.question || data.text,
         understanding_hint: data.understanding_hint || '',
         standard_answer: data.standard_answer || '',
@@ -908,6 +1011,71 @@ export default {
       this.currentJudgeResult = data.lastJudgeResult || null
       this.manualRating = data.manualRating || null
       this.scheduleFeedbackMsg = ''
+
+      this.syncActiveNodeToMindMap(index)
+    },
+    syncActiveNodeToMindMap(activeIndex) {
+      if (!this.quizMindMapInstance || !this.quizTreeData || !this.quizTreeData.root) return
+
+      for (let i = 0; i < this.questionNodeList.length; i++) {
+        const node = this.questionNodeList[i]
+        if (!node || !node.data) continue
+
+        const status = node.data.status || 'pending'
+        const stdAns = node.data.standard_answer || '标准答案'
+        const rawTitle = node.data.target_node_text || '考点'
+        const dimName = node.data.dimension_name || '考查'
+
+        if (i === activeIndex) {
+          // 当前聚焦考查节点：宝蓝色高亮
+          node.data.fillColor = '#eff6ff'
+          node.data.borderColor = '#2563eb'
+          node.data.borderWidth = 3
+          node.data.color = '#1e40af'
+          if (!node.data.isCompleted) {
+            node.data.text = `🎯 [考查中] ${rawTitle} (${i + 1})`
+          }
+        } else {
+          // 非当前节点：根据其已评定的状态恢复对应的图标与颜色
+          if (status === 'mastered') {
+            node.data.text = `🌟 [熟练] ${stdAns}`
+            node.data.fillColor = '#f0fdf4'
+            node.data.borderColor = '#16a34a'
+            node.data.borderWidth = 2
+            node.data.color = '#15803d'
+          } else if (status === 'remembered') {
+            node.data.text = `✅ [记得] ${stdAns}`
+            node.data.fillColor = '#f0fdf4'
+            node.data.borderColor = '#22c55e'
+            node.data.borderWidth = 2
+            node.data.color = '#166534'
+          } else if (status === 'fuzzy') {
+            node.data.text = `🤔 [模糊] ${stdAns}`
+            node.data.fillColor = '#fff7ed'
+            node.data.borderColor = '#f97316'
+            node.data.borderWidth = 2
+            node.data.color = '#9a3412'
+          } else if (status === 'forgot') {
+            node.data.text = `❌ [忘记] ${stdAns}`
+            node.data.fillColor = '#fef2f2'
+            node.data.borderColor = '#ef4444'
+            node.data.borderWidth = 2
+            node.data.color = '#991b1b'
+          } else {
+            // 待考查
+            node.data.text = `❓ 【${dimName}】${rawTitle} (${i + 1})`
+            node.data.fillColor = '#fefce8'
+            node.data.borderColor = '#eab308'
+            node.data.borderWidth = 2
+            node.data.color = '#854d0e'
+          }
+        }
+      }
+
+      try {
+        this.quizMindMapInstance.setData(JSON.parse(JSON.stringify(this.quizTreeData.root)))
+        this.quizMindMapInstance.render()
+      } catch (e) {}
     },
     revealMentalAnswer() {
       this.isAnswerRevealed = true
@@ -918,9 +1086,13 @@ export default {
       if (!node || !node.data) return
 
       node.data.isCompleted = true
+      node.data.status = isPassed ? 'remembered' : 'fuzzy'
       const ans = node.data.standard_answer || this.currentQuiz.standard_answer || '已掌握'
-      // 动态翻牌变绿显示真实答案
-      node.data.text = `✅ ${ans}`
+      node.data.text = isPassed ? `✅ [已揭晓] ${ans}` : `🤔 [需巩固] ${ans}`
+      node.data.fillColor = isPassed ? '#f0fdf4' : '#fff7ed'
+      node.data.borderColor = isPassed ? '#22c55e' : '#f97316'
+      node.data.borderWidth = 2
+      node.data.color = isPassed ? '#166534' : '#9a3412'
 
       if (this.quizMindMapInstance) {
         try {
@@ -990,6 +1162,48 @@ export default {
       const node = this.questionNodeList[this.currentQuestionIndex]
       if (node && node.data) {
         node.data.manualRating = rating
+        node.data.isCompleted = true
+        const statusMap = {
+          mastered: 'mastered',
+          remember: 'remembered',
+          fuzzy: 'fuzzy',
+          forgot: 'forgot'
+        }
+        node.data.status = statusMap[rating] || 'remembered'
+        const stdAns = node.data.standard_answer || this.currentQuiz?.standard_answer || '考点内容'
+
+        if (rating === 'mastered') {
+          node.data.text = `🌟 [熟练] ${stdAns}`
+          node.data.fillColor = '#f0fdf4'
+          node.data.borderColor = '#16a34a'
+          node.data.borderWidth = 2
+          node.data.color = '#15803d'
+        } else if (rating === 'remember') {
+          node.data.text = `✅ [记得] ${stdAns}`
+          node.data.fillColor = '#f0fdf4'
+          node.data.borderColor = '#22c55e'
+          node.data.borderWidth = 2
+          node.data.color = '#166534'
+        } else if (rating === 'fuzzy') {
+          node.data.text = `🤔 [模糊] ${stdAns}`
+          node.data.fillColor = '#fff7ed'
+          node.data.borderColor = '#f97316'
+          node.data.borderWidth = 2
+          node.data.color = '#9a3412'
+        } else if (rating === 'forgot') {
+          node.data.text = `❌ [忘记] ${stdAns}`
+          node.data.fillColor = '#fef2f2'
+          node.data.borderColor = '#ef4444'
+          node.data.borderWidth = 2
+          node.data.color = '#991b1b'
+        }
+
+        if (this.quizMindMapInstance) {
+          try {
+            this.quizMindMapInstance.setData(JSON.parse(JSON.stringify(this.quizTreeData.root)))
+            this.quizMindMapInstance.render()
+          } catch (e) {}
+        }
       }
 
       const nodeId = this.currentQuiz?.target_node_id || this.focusNodeId
@@ -1320,32 +1534,85 @@ export default {
 
   /* 上半区：思维导图交互区 */
   .mindMapCanvasSection {
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
     overflow: hidden;
+    background: #ffffff;
     display: flex;
     flex-direction: column;
 
     .canvasHeaderBar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 12px;
       background: #f8fafc;
+      padding: 8px 12px;
       border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
 
-      .canvasTitle {
+      .canvasTopRow {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+
+        .canvasTitle {
+          font-size: 13px;
+          color: #1e293b;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+
+          .subInfo {
+            font-size: 11px;
+            color: #64748b;
+            margin-left: 6px;
+          }
+        }
+
+        .progressStatsBar {
+          display: flex;
+          gap: 8px;
+          font-size: 11px;
+          font-weight: 500;
+
+          .statItem {
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+
+            &.mastered { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
+            &.remembered { color: #166534; border-color: #bbf7d0; background: #f0fdf4; }
+            &.fuzzy { color: #9a3412; border-color: #fed7aa; background: #fff7ed; }
+            &.forgot { color: #991b1b; border-color: #fecaca; background: #fef2f2; }
+            &.pending { color: #854d0e; border-color: #fef08a; background: #fefce8; }
+          }
+        }
+      }
+
+      .progressBarWrapper {
         display: flex;
         align-items: center;
-        gap: 6px;
-        font-size: 13px;
-        color: #0f172a;
+        gap: 10px;
 
-        .subInfo {
+        .progressOuter {
+          flex: 1;
+          height: 7px;
+          background: #e2e8f0;
+          border-radius: 4px;
+          overflow: hidden;
+
+          .progressInner {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            transition: width 0.3s ease;
+          }
+        }
+
+        .progressPercentText {
           font-size: 11px;
-          color: #64748b;
-          margin-left: 8px;
+          font-weight: 600;
+          color: #0f766e;
+          white-space: nowrap;
         }
       }
 
@@ -1361,23 +1628,28 @@ export default {
           gap: 4px;
 
           .dot {
-            width: 8px;
-            height: 8px;
+            width: 9px;
+            height: 9px;
             border-radius: 50%;
 
-            &.question { background: #eab308; }
-            &.passed { background: #16a34a; }
-            &.active { background: #2563eb; }
+            &.active { background: #2563eb; box-shadow: 0 0 6px #3b82f6; }
+            &.pending { background: #eab308; }
+            &.remembered { background: #16a34a; }
+            &.fuzzy { background: #f97316; }
+            &.forgot { background: #ef4444; }
           }
         }
       }
     }
 
     .canvasContainer {
-      height: 310px;
+      height: 320px;
+      min-height: 320px;
       width: 100%;
+      min-width: 100%;
       position: relative;
-      background: #fafafa;
+      background: #f8fafc;
+      overflow: hidden;
     }
   }
 
@@ -1389,6 +1661,70 @@ export default {
 
     .questionCard {
       background: #ffffff;
+
+      .aspectInsightBox {
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-bottom: 10px;
+
+        .aspectRow {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-bottom: 4px;
+
+          .aspectBadge {
+            font-size: 11px;
+            font-weight: 500;
+            padding: 2px 7px;
+            border-radius: 4px;
+
+            &.modeBadge {
+              background: #e0e7ff;
+              color: #3730a3;
+              border: 1px solid #c7d2fe;
+            }
+
+            &.dimBadge {
+              background: #fef3c7;
+              color: #92400e;
+              border: 1px solid #fde68a;
+            }
+
+            &.subBadge {
+              background: #dcfce7;
+              color: #166534;
+              border: 1px solid #bbf7d0;
+            }
+          }
+        }
+
+        .domainPathRow {
+          display: flex;
+          align-items: center;
+          font-size: 11px;
+          color: #475569;
+
+          .domainLabel {
+            font-weight: 500;
+            white-space: nowrap;
+          }
+
+          .domainPath {
+            color: #1e293b;
+            font-weight: 600;
+          }
+        }
+      }
+
+      .secureMaskTag {
+        font-size: 11px;
+        color: #059669;
+        margin-left: 8px;
+        font-weight: 500;
+      }
       border: 1px solid #e2e8f0;
       border-left: 4px solid #3b82f6;
       border-radius: 8px;

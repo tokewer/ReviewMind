@@ -23,15 +23,19 @@ describe('思维导图学术审校与考官服务 (MindMapAuditor)', () => {
     expect(INTERROGATION_SYSTEM_PROMPT).toContain('严禁在题干中直接透露答案')
   })
 
-  it('内容记忆模式提示词包含注重理解与生僻字定向提取铁律', () => {
+  it('模式一提示词包含高考直接主力军、有什么是什么与生僻字定向提取铁律', () => {
+    expect(MEMORY_INTERROGATION_SYSTEM_PROMPT).toContain('高考直接主力军')
+    expect(MEMORY_INTERROGATION_SYSTEM_PROMPT).toContain('有什么、是什么')
+    expect(MEMORY_INTERROGATION_SYSTEM_PROMPT).toContain('所有内容必须为高考服务，不需要复习、考察过度超纲')
     expect(MEMORY_INTERROGATION_SYSTEM_PROMPT).toContain('注重理解，只有理解了才能记忆住')
     expect(MEMORY_INTERROGATION_SYSTEM_PROMPT).toContain('difficult_chars')
     expect(MEMORY_INTERROGATION_SYSTEM_PROMPT).toContain('has_difficult_chars')
   })
 
-  it('内容理解模式提示词包含四维透视架构', () => {
-    expect(UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT).toContain('有哪些')
-    expect(UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT).toContain('是什么')
+  it('模式二提示词包含高考理解后勤部与为什么为了什么深度复盘', () => {
+    expect(UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT).toContain('高考理解后勤部')
+    expect(UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT).toContain('为什么、为了什么')
+    expect(UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT).toContain('所有内容必须为高考服务，不需要复习、考察过度超纲')
     expect(UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT).toContain('为什么')
     expect(UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT).toContain('为了什么')
   })
