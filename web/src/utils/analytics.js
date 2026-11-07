@@ -77,7 +77,7 @@ export function initBaiduAnalytics(siteId) {
   }
 
   window._hmt = window._hmt || []
-  if (document.getElementById('baidu-tongji-script')) return
+  if (document.getElementById('baidu-tongji-script') || document.querySelector('script[src*="hm.baidu.com/hm.js"]')) return
 
   const hm = document.createElement('script')
   hm.id = 'baidu-tongji-script'

@@ -10,18 +10,14 @@
     <link rel="icon" href="dist/logo.ico" />
     <title>复习思维导图</title>
     <script>
-      // 百度统计（线上全站访问数据统计与开发环境隔离）
-      var _hmt = _hmt || [];
-      (function() {
-        var h = window.location.hostname;
-        if (h === 'localhost' || h === '127.0.0.1' || window.location.protocol === 'file:') return;
-        var hm = document.createElement("script");
-        hm.id = "baidu-tongji-script";
-        hm.src = "https://hm.baidu.com/hm.js?1dc2a98c8539709ece738c4ff35433dd";
-        var s = document.getElementsByTagName("script")[0]; 
-        s.parentNode.insertBefore(hm, s);
-      })();
-    </script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?1dc2a98c8539709ece738c4ff35433dd";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
     <script>
       // 自定义静态资源的路径
       window.externalPublicPath = './dist/'
