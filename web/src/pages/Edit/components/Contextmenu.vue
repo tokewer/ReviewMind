@@ -175,6 +175,21 @@
       >
         <span class="name">{{ $t('contextmenu.manageCards') }}</span>
       </div>
+      <div class="splitLine"></div>
+      <div
+        class="item"
+        @click="openAiNodeInterrogation"
+        :class="{ disabled: isGeneralization }"
+      >
+        <span class="name">🧠 AI 深度拷问该节点</span>
+      </div>
+      <div
+        class="item"
+        @click="openAiNodeAudit"
+        :class="{ disabled: isGeneralization }"
+      >
+        <span class="name">🔍 AI 审校体检该分支</span>
+      </div>
       <div class="splitLine" v-if="enableAi"></div>
       <div class="item" @click="aiCreate" v-if="enableAi">
         <span class="name">{{ $t('contextmenu.aiCreate') }}</span>
@@ -742,6 +757,22 @@ export default {
         fileId: identity.fileId,
         fileName: identity.fileName
       })
+      this.hide()
+    },
+    openAiNodeInterrogation() {
+      if (this.isGeneralization) return
+      const node = this.nodeArr && this.nodeArr[0]
+      const focusNodeId = node ? (node.nodeData?.data?.uid || node.nodeData?.data?.id || node.uid) : null
+      const nodeText = node ? (node.nodeData?.data?.text || '').replace(/<[^>]+>/g, '').trim() : ''
+      this.$bus.$emit('showAiInterrogation', { focusNodeId, nodeText })
+      this.hide()
+    },
+    openAiNodeAudit() {
+      if (this.isGeneralization) return
+      const node = this.nodeArr && this.nodeArr[0]
+      const focusNodeId = node ? (node.nodeData?.data?.uid || node.nodeData?.data?.id || node.uid) : null
+      const nodeText = node ? (node.nodeData?.data?.text || '').replace(/<[^>]+>/g, '').trim() : ''
+      this.$bus.$emit('showAiAudit', { focusNodeId, nodeText })
       this.hide()
     }
   }

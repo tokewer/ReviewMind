@@ -3,22 +3,34 @@
     title="🔍 AI 思维导图学术体检与纠错诊断"
     :visible.sync="visible"
     direction="rtl"
-    size="460px"
+    size="480px"
     :append-to-body="true"
     custom-class="aiAuditDrawer"
   >
-    <div class="drawerContent" v-loading="loading" element-loading-text="AI 导师正在严查导图逻辑与事实硬伤...">
+    <div class="drawerContent" v-loading="loading" element-loading-text="AI 导师正在严查导图逻辑漏洞与事实硬伤...">
       <!-- 顶部操作栏 -->
       <div class="actionHeader">
         <div class="descTip">
-          <strong>【审校铁律】</strong>：严禁 AI 代写子节点！本系统仅定位病因并抛出反思自查问题，引导您自主思考与重构。
+          <strong>【审校铁律】</strong>：严禁 AI 代写子节点！本系统仅指出病因并抛出启发式反思问题，引导您自主思考与重构。
         </div>
+
+        <!-- 靶向范围提示 -->
+        <div class="targetNodeBanner" v-if="selectedNodeText">
+          <span class="targetIcon">🎯</span>
+          <span class="targetLabel">当前聚焦分支：</span>
+          <strong class="targetName">【{{ selectedNodeText }}】</strong>
+          <el-button type="text" size="mini" @click="clearFocusNode" style="margin-left: 8px;">切换为全图体检</el-button>
+        </div>
+
         <div class="btnRow">
           <el-button type="primary" size="small" icon="el-icon-cpu" @click="startAudit(false)" :disabled="loading">
             体检整张导图
           </el-button>
           <el-button size="small" icon="el-icon-connection" @click="startAudit(true)" :disabled="loading || !hasSelectedNode">
-            体检当前分支
+            体检选定分支
+          </el-button>
+          <el-button size="small" icon="el-icon-setting" @click="openConfig">
+            API 配置
           </el-button>
         </div>
       </div>
@@ -84,7 +96,7 @@
       <!-- 底部 Gemini 关联通道引导 -->
       <div class="bottomMcpTip">
         <div class="tipTitle">💡 想要在 Google Gemini 中直接对话审校？</div>
-        <div class="tipSub">双击运行项目根目录的 <code>启动Gemini关联.bat</code>，即可在 Gemini 网页端关联您的本地导图！</div>
+        <div class="tipSub">双击运行项目根目录的 <code>启动Gemini关联.bat</code>，即可在 Gemini 网页端通过 MCP 协议关联您的本地导图！</div>
       </div>
     </div>
   </el-drawer>
@@ -92,6 +104,7 @@
 
 <script>
 import { auditMindMap } from '@/review/mindMapAuditor'
+import { getJudgeAiConfig } from '@/review/handwritingJudge'
 
 export default {
   name: 'AiAuditDrawer',
@@ -105,12 +118,14 @@ export default {
     return {
       visible: false,
       loading: false,
-      report: null
+      report: null,
+      focusNodeId: null,
+      selectedNodeText: ''
     }
   },
   created() {
-    this.$bus.$on('showAiAudit', () => {
-      this.show()
+    this.$bus.$on('showAiAudit', (payload) => {
+      this.show(payload)
     })
   },
   beforeDestroy() {
@@ -118,41 +133,84 @@ export default {
   },
   computed: {
     hasSelectedNode() {
+      if (this.focusNodeId) return true
       if (!this.mindMap || !this.mindMap.renderer) return false
       const list = this.mindMap.renderer.activeNodeList || []
       return list.length > 0
     }
   },
   methods: {
-    show() {
+    show(payload = {}) {
       this.visible = true
-      if (!this.report) {
-        this.startAudit(false)
+      if (payload && payload.focusNodeId) {
+        this.focusNodeId = payload.focusNodeId
+        this.selectedNodeText = payload.nodeText || ''
+      } else {
+        this.checkActiveNodeSelection()
       }
+      this.startAudit(!!this.focusNodeId)
     },
-    async startAudit(onlyBranch = false) {
-      if (!this.mindMap) {
-        this.$message.warning('思维导图未就绪')
-        return
-      }
-
-      let focusNodeId = null
-      if (onlyBranch) {
+    checkActiveNodeSelection() {
+      if (this.mindMap && this.mindMap.renderer) {
         const activeList = this.mindMap.renderer.activeNodeList || []
         if (activeList.length > 0) {
-          focusNodeId = activeList[0].nodeData.data.uid || activeList[0].nodeData.data.id
+          const node = activeList[0]
+          this.focusNodeId = node.nodeData?.data?.uid || node.nodeData?.data?.id || null
+          this.selectedNodeText = (node.nodeData?.data?.text || '').replace(/<[^>]+>/g, '').trim()
+          return
         }
       }
-
-      const rootData = this.mindMap.getData(false)
-      if (!rootData || !rootData.root) {
-        this.$message.warning('思维导图内容为空')
+      this.focusNodeId = null
+      this.selectedNodeText = ''
+    },
+    clearFocusNode() {
+      this.focusNodeId = null
+      this.selectedNodeText = ''
+      this.startAudit(false)
+    },
+    openConfig() {
+      this.$bus.$emit('showAiConfig')
+    },
+    getRootNode() {
+      if (!this.mindMap) return null
+      // 容错获取根节点，兼容 getData(false)、getData(true) 以及 renderer 内存树
+      const raw = this.mindMap.getData(false)
+      if (raw && (raw.root || raw.data)) {
+        return raw.root || raw
+      }
+      if (this.mindMap.renderer && this.mindMap.renderer.root) {
+        return this.mindMap.renderer.root.nodeData
+      }
+      return null
+    },
+    async startAudit(onlyBranch = false) {
+      const cfg = getJudgeAiConfig()
+      if (!cfg.apiKey) {
+        this.$message.info('首次使用请先配置大模型 API Key（支持 Gemini、DeepSeek 等）')
+        this.openConfig()
         return
+      }
+
+      const rootNode = this.getRootNode()
+      if (!rootNode || !rootNode.data) {
+        this.$message.warning('当前导图内容为空，请先在画布中添加或打开节点')
+        return
+      }
+
+      let targetBranchId = null
+      if (onlyBranch) {
+        targetBranchId = this.focusNodeId
+        if (!targetBranchId && this.mindMap && this.mindMap.renderer) {
+          const list = this.mindMap.renderer.activeNodeList || []
+          if (list.length > 0) {
+            targetBranchId = list[0].nodeData?.data?.uid || list[0].nodeData?.data?.id
+          }
+        }
       }
 
       this.loading = true
       try {
-        const res = await auditMindMap(rootData.root, { focusNodeId })
+        const res = await auditMindMap(rootNode, { focusNodeId: targetBranchId })
         this.report = res
         this.$message.success('导图学术体检完成！')
       } catch (err) {
@@ -165,7 +223,6 @@ export default {
       if (!this.mindMap || !issue) return
       let targetNode = null
 
-      // 1. 尝试按 node_id 匹配
       if (issue.node_id) {
         targetNode = this.mindMap.renderer.findNodeByData({ uid: issue.node_id })
         if (!targetNode) {
@@ -173,7 +230,6 @@ export default {
         }
       }
 
-      // 2. 尝试按节点文字精准匹配
       if (!targetNode && issue.node_text) {
         const allNodes = this.mindMap.renderer.root ? [this.mindMap.renderer.root] : []
         const queue = [...allNodes]
@@ -194,7 +250,7 @@ export default {
         if (this.mindMap.view && this.mindMap.view.locate) {
           this.mindMap.view.locate(targetNode)
         }
-        this.$message.info(`已在画布中居中定位节点：【${issue.node_text}】`)
+        this.$message.info(`已居中定位至节点：【${issue.node_text}】`)
       } else {
         this.$message.warning(`未能定位到节点：${issue.node_text}`)
       }
@@ -248,6 +304,29 @@ export default {
       color: #e6a23c;
       line-height: 1.6;
       margin-bottom: 10px;
+    }
+
+    .targetNodeBanner {
+      background: #fff;
+      border: 1px solid #e1f3d8;
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      font-size: 13px;
+
+      .targetIcon {
+        margin-right: 4px;
+      }
+
+      .targetLabel {
+        color: #606266;
+      }
+
+      .targetName {
+        color: #409eff;
+      }
     }
 
     .btnRow {

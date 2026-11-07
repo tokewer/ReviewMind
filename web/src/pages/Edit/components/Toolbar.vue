@@ -50,6 +50,10 @@
           <span class="icon el-icon-search" style="font-size: 16px;"></span>
           <span class="text">AI 体检</span>
         </div>
+        <div class="toolbarBtn" @click="$bus.$emit('showAiConfig')" v-if="!isMobile">
+          <span class="icon el-icon-setting" style="font-size: 16px;"></span>
+          <span class="text">AI 配置</span>
+        </div>
         <div class="toolbarBtn" @click="openDirectory" v-if="!isMobile">
           <span class="icon iconfont icondakai"></span>
           <span class="text">{{ $t('toolbar.directory') }}</span>

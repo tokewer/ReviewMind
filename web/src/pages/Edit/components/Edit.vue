@@ -63,6 +63,7 @@
     <NodeTableDialog v-if="mindMap" :mindMap="mindMap"></NodeTableDialog>
     <AiInterrogationDialog v-if="mindMap" :mindMap="mindMap"></AiInterrogationDialog>
     <AiAuditDrawer v-if="mindMap" :mindMap="mindMap"></AiAuditDrawer>
+    <ReviewAiConfigDialog></ReviewAiConfigDialog>
     <div
       class="dragMask"
       v-if="showDragMask"
@@ -170,6 +171,7 @@ import AiCreate from './AiCreate.vue'
 import AiChat from './AiChat.vue'
 import AiInterrogationDialog from './AiInterrogationDialog.vue'
 import AiAuditDrawer from './AiAuditDrawer.vue'
+import ReviewAiConfigDialog from './ReviewAiConfigDialog.vue'
 import ReviewFloat from './ReviewFloat.vue'
 import ReviewGlowSync from './ReviewGlowSync.vue'
 import MasteryColorSettings from './MasteryColorSettings.vue'
@@ -241,6 +243,7 @@ export default {
     AiChat,
     AiInterrogationDialog,
     AiAuditDrawer,
+    ReviewAiConfigDialog,
     ReviewFloat,
     ReviewGlowSync,
     MasteryColorSettings,
