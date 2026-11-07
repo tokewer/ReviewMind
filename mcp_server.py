@@ -56,6 +56,17 @@ def node_to_markdown(node, depth=1, max_depth=6):
     return lines
 
 
+def extract_root_node(file_data):
+    """鲁棒提取思维导图的根节点对象（兼容 { root: ... } 结构或直接根节点结构）"""
+    if not file_data or not isinstance(file_data, dict):
+        return None
+    if 'root' in file_data and isinstance(file_data['root'], dict):
+        return file_data['root']
+    if 'data' in file_data and isinstance(file_data['data'], dict):
+        return file_data
+    return None
+
+
 class MCPServer:
     def __init__(self, store_dir):
         self.store_dir = store_dir
@@ -227,8 +238,9 @@ class MCPServer:
                 return "【提示】当前本地尚未创建或打开任何思维导图文件。"
             
             file_data = self.get_file_data(curr_id)
-            if not file_data or 'root' not in file_data:
-                return f"【提示】未找到 ID 为 {curr_id} 的思维导图内容。"
+            root_node = extract_root_node(file_data)
+            if not root_node:
+                return f"【提示】未找到 ID 为 {curr_id} 的思维导图有效内容。"
             
             # 获取导图名称
             file_list = self.get_file_list()
@@ -239,7 +251,7 @@ class MCPServer:
                     break
                     
             max_depth = args.get('max_depth', 6)
-            outline_lines = node_to_markdown(file_data.get('root'), 1, max_depth)
+            outline_lines = node_to_markdown(root_node, 1, max_depth)
             outline_text = "\n".join(outline_lines)
             
             return f"### 思维导图：《{file_name}》 (ID: {curr_id})\n\n```markdown\n{outline_text}\n```"
@@ -274,11 +286,12 @@ class MCPServer:
                 return f"未能匹配到包含名称 '{target}' 的思维导图文件。"
             
             file_data = self.get_file_data(matched_id)
-            if not file_data or 'root' not in file_data:
+            root_node = extract_root_node(file_data)
+            if not root_node:
                 return f"导图文件《{matched_name}》损坏或内容为空。"
                 
             max_depth = args.get('max_depth', 6)
-            outline_lines = node_to_markdown(file_data.get('root'), 1, max_depth)
+            outline_lines = node_to_markdown(root_node, 1, max_depth)
             outline_text = "\n".join(outline_lines)
             return f"### 思维导图：《{matched_name}》 (ID: {matched_id})\n\n```markdown\n{outline_text}\n```"
 
@@ -296,10 +309,11 @@ class MCPServer:
                 curr_id = self.get_current_file_id()
             
             file_data = self.get_file_data(curr_id) if curr_id else None
-            if not file_data or 'root' not in file_data:
+            root_node = extract_root_node(file_data)
+            if not root_node:
                 return "无法读取导图内容进行体检。请确保思维导图已保存并处于开启状态。"
 
-            outline = "\n".join(node_to_markdown(file_data.get('root'), 1, 6))
+            outline = "\n".join(node_to_markdown(root_node, 1, 6))
             focus = f"\n用户要求重点审视分支：{args.get('focus_topic')}\n" if args.get('focus_topic') else ""
             
             prompt = f"""【思维导图学术审校与逻辑体检任务】
@@ -321,10 +335,11 @@ class MCPServer:
         elif name == 'generate_socratic_quiz':
             curr_id = self.get_current_file_id()
             file_data = self.get_file_data(curr_id) if curr_id else None
-            if not file_data or 'root' not in file_data:
+            root_node = extract_root_node(file_data)
+            if not root_node:
                 return "无法读取当前导图生成考题。"
 
-            outline = "\n".join(node_to_markdown(file_data.get('root'), 1, 6))
+            outline = "\n".join(node_to_markdown(root_node, 1, 6))
             q_type = args.get('question_type', 'all')
             type_desc = {
                 'essence': '【溯源本质题】：考查核心定义的内涵、成立前提与必要边界条件',

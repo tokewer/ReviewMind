@@ -2,6 +2,18 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.5.1] - 2026-11-07
+
+### Fixed
+- **彻底根治弹窗与输入态下快捷键穿透控制背景节点的严重缺陷**：
+  - 在 `simple-mind-map/src/core/command/KeyCommand.js` 中构建全景交互态守卫（`isModalOrInputActive`）；
+  - 当任何弹窗（如 AI 拷问弹窗、AI 体检抽屉、设置对话框、管理弹窗等）、Element UI 遮罩层（`.v-modal`）、或者文本输入域（`input`、`textarea`、`contenteditable`）激活时，彻底挂起背景画布快捷键分发；
+  - 杜绝在弹窗内输入或按下回车（Enter）、删除（Delete/Backspace）、空格、Tab 等按键时误触背景导图节点增删改操作；
+  - 严格保留导图节点原生内联编辑（`smm-node-edit-wrap`）的合法按键交互。
+- **强化 MCP 协议数据解构鲁棒性**：
+  - `mcp_server.py` 新增 `extract_root_node` 多模式解构，彻底杜绝在特定保存格式下提示“导图内容为空”的缺陷。
+  - `server.py` 补充 `/mcp/` 尾斜杠路径兼容与泛跨域请求头放行，确保 Google Gemini 官方关联客户端无缝握手。
+
 ## [1.5.0] - 2026-11-07
 
 ### Added

@@ -130,17 +130,92 @@ export default class KeyCommand {
     return false
   }
 
+  // 判断当前是否有弹窗、抽屉、消息浮层或外部表单元素正在接收用户交互，避免快捷键穿透控制背景节点
+  isModalOrInputActive(e) {
+    try {
+      const target = e && e.target
+      if (!target) return false
+
+      // 1. 如果是在思维导图节点本身的富文本/节点编辑框中，这是合法的节点编辑行为，允许通过
+      const editNodeClassList = this.mindMap.editNodeClassList || []
+      for (let i = 0; i < editNodeClassList.length; i++) {
+        const cur = editNodeClassList[i]
+        if (target.classList && target.classList.contains && target.classList.contains(cur)) {
+          return false
+        }
+        if (target.closest && target.closest('.' + cur)) {
+          return false
+        }
+      }
+
+      // 2. 检查事件目标是否是外部输入组件（input, textarea, select, contenteditable, 富文本编辑器）
+      const tagName = (target.tagName || '').toUpperCase()
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName)) {
+        return true
+      }
+      if (target.isContentEditable) {
+        return true
+      }
+      if (target.closest && target.closest('input, textarea, select, [contenteditable="true"], .el-input, .el-textarea, .toastui-editor-defaultUI')) {
+        return true
+      }
+
+      // 3. 检查事件目标是否位于弹窗、抽屉、消息框、下拉菜单、颜色选择器或侧边浮层内
+      if (target.closest && target.closest(
+        '.el-dialog, .el-drawer, .el-message-box, .el-popover, .el-dropdown-menu, ' +
+        '.el-select-dropdown, .el-color-picker__panel, .contextmenuContainer, .fileTreeBox, ' +
+        '.ai-interrogation-dialog, .review-ai-config-dialog, .ai-audit-drawer, .sidebar-container, .dialogContainer'
+      )) {
+        return true
+      }
+
+      // 4. 全局检查：当前是否有任何可见的遮罩层或弹窗/抽屉处于打开状态
+      if (typeof document !== 'undefined' && document.querySelectorAll) {
+        // 检查遮罩层 (Element UI v-modal)
+        const vModals = document.querySelectorAll('.v-modal')
+        for (let i = 0; i < vModals.length; i++) {
+          const vm = vModals[i]
+          if (vm && vm.style && vm.style.display !== 'none') {
+            return true
+          }
+        }
+        // 检查未处于 display: none 的弹窗与抽屉容器
+        const dialogWrappers = document.querySelectorAll(
+          '.el-dialog__wrapper, .el-drawer__wrapper, .el-message-box__wrapper, .dialogContainer'
+        )
+        for (let i = 0; i < dialogWrappers.length; i++) {
+          const wrapper = dialogWrappers[i]
+          if (wrapper && wrapper.style && wrapper.style.display !== 'none') {
+            if (typeof window !== 'undefined' && window.getComputedStyle) {
+              const style = window.getComputedStyle(wrapper)
+              if (style && style.display !== 'none' && style.visibility !== 'hidden') {
+                return true
+              }
+            } else {
+              return true
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // 容错处理
+    }
+    return false
+  }
+
   // 按键事件
   onKeydown(e) {
+    if (this.isModalOrInputActive(e)) {
+      return
+    }
     const {
       enableShortcutOnlyWhenMouseInSvg,
       beforeShortcutRun,
       customCheckEnableShortcut
     } = this.mindMap.opt
-    const checkFn =
-      typeof customCheckEnableShortcut === 'function'
-        ? customCheckEnableShortcut
-        : this.defaultEnableCheck
+    if (typeof customCheckEnableShortcut === 'function') {
+      if (!customCheckEnableShortcut(e)) return
+    }
     const activeNodes =
       (this.mindMap.renderer && this.mindMap.renderer.activeNodeList) || []
     const hasActiveNode = activeNodes.length > 0

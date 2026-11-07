@@ -36,7 +36,7 @@ def _resolve_port(default=8080):
     return default
 
 
-VERSION = '1.4.10'
+VERSION = '1.4.11'
 PORT = _resolve_port()
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, 'data')
@@ -341,7 +341,7 @@ class GzipHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With')
+        self.send_header('Access-Control-Allow-Headers', '*')
         self.end_headers()
 
     def serve_mcp_sse(self):
@@ -420,7 +420,7 @@ class GzipHandler(http.server.SimpleHTTPRequestHandler):
                 return self.serve_image_get(path[len('/api/image/'):])
             if path == '/api/storage':
                 return self.serve_storage_get()
-            if path in ('/mcp', '/mcp/sse'):
+            if path in ('/mcp', '/mcp/', '/mcp/sse', '/mcp/sse/'):
                 return self.serve_mcp_sse()
         except Exception:
             self.send_error(500)
@@ -438,7 +438,7 @@ class GzipHandler(http.server.SimpleHTTPRequestHandler):
                 return self.serve_storage_post()
             if path in ('/api/image', '/api/image/'):
                 return self.serve_image_post()
-            if path in ('/mcp', '/mcp/messages'):
+            if path in ('/mcp', '/mcp/', '/mcp/messages', '/mcp/messages/'):
                 return self.serve_mcp_messages()
         except RequestBodyTooLarge:
             self._send_json({'ok': False, 'message': '请求体过大'}, 413)
