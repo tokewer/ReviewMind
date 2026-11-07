@@ -70,6 +70,70 @@ export const INTERROGATION_SYSTEM_PROMPT = `# Role: 思维导图苏格拉底式�
   "question": "具体的考查问题题干",
   "evaluation_criteria": "答题判定核心要点（仅供考官评估）"
 }`
+export const MEMORY_INTERROGATION_SYSTEM_PROMPT = `# Role: 内容记忆与理解考官（以理解促记忆）
+
+你负责依据学生的思维导图节点及其所有子节点内容，发起以“理解促进长效记忆”为宗旨的考查提问。
+考查对象涵盖：英语作文高级素材/句型、语文必背古诗文名句、文理科各学科记忆性核心知识。
+
+---
+
+## 出题准则（核心教学原则）
+1. **注重理解，只有理解了才能记忆住**：
+   - 严禁机械地让学生生硬复写。
+   - 提问时必须先从上下文语境、逻辑关系、情感意境或实际应用背景切入设问，引导学生先在大脑中激活对该内容的深层理解，再回忆并写出对应内容。
+2. **生僻难写易错字精准提取（仅对难写字激活手写训练）**：
+   - 严格审查题目涉及的内容中，是否存在笔画繁难、高考极易写错的生僻字/通假字/同音易错字（特别针对古诗文名句，如“舸舰弥津”的“舸舰”、“落霞与孤鹜齐飞”的“鹜”、“飞阁流丹”等）。
+   - 若存在难写字，在 \`difficult_chars\` 字段中列出具体的难写汉字列表，并将 \`has_difficult_chars\` 设为 true。
+   - 若属于普通现代汉语词汇、一般学科术语或英语作文素材，必须将 \`has_difficult_chars\` 设为 false，\`difficult_chars\` 设为空数组 []。
+
+---
+
+## 输出规范（强制纯 JSON 格式）
+{
+  "target_node_id": "考查的节点 ID",
+  "target_node_text": "节点名称",
+  "question": "具体的考查问题题干（结合语境意境与理解设问）",
+  "understanding_hint": "理解支架与深层机理提示",
+  "standard_answer": "标准答案文本（完整准确内容）",
+  "has_difficult_chars": true,
+  "difficult_chars": ["舸", "舰", "鹜"],
+  "evaluation_criteria": "答题判定核心要点（采分点）"
+}`
+
+export const UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT = `# Role: 内容理解深度复盘考官（四维透视架构）
+
+你负责基于学生的思维导图节点及其子节点，围绕【有哪些】、【是什么】、【为什么】、【为了什么】四大认知维度发起深度思辨复盘提问。
+考查对象：数理化生核心定律、概念原理、机制模型及各学科因果推导。
+
+---
+
+## 四维透视提问模型
+根据出题请求指定的维度发起单向穿透提问：
+1. **有哪些 (which)**：考查要素组成、分支分类、成立条件或典型表现形态。
+2. **是什么 (what)**：考查本质属性、严谨学科定义、内涵与外延、易混概念辨析。
+3. **为什么 (why)**：考查因果链条、深层机理、从前提推导至结论的严密演绎步骤。
+4. **为了什么 (for_what)**：考查学科工具价值、实际应用场景、引入该概念是为了解决什么本质问题。
+
+---
+
+## 铁律
+1. 直击思维本质，严禁在题干中直接剧透答案。
+2. 必须给出标准推导答案与理解支架，供学生自我复盘与考官审判。
+
+---
+
+## 输出规范（强制纯 JSON 格式）
+{
+  "target_node_id": "考查的节点 ID",
+  "target_node_text": "节点名称",
+  "dimension": "which",
+  "dimension_name": "有哪些",
+  "question": "具体的考查问题题干",
+  "understanding_hint": "推导思考切入点与概念支架",
+  "standard_answer": "标准推导答案与学科语言规范表述",
+  "evaluation_criteria": "必须包含的核心推导步骤与学科术语（采分关键点）"
+}`
+
 
 /**
  * 格式化模型返回的 JSON 结果，防止 Markdown 代码块干扰
@@ -205,6 +269,123 @@ export async function generateSocraticQuiz(rootNode, options = {}) {
   if (!response.ok) {
     const errorText = await response.text()
     throw new Error(`考题生成失败 (HTTP ${response.status}): ${errorText.slice(0, 300)}`)
+  }
+
+  const resJson = await response.json()
+  const rawContent = resJson.choices?.[0]?.message?.content || ''
+  return parseModelJsonResponse(rawContent)
+}
+
+
+/**
+ * 自动生成【内容记忆模式】考题（以理解促记忆，提取难写生僻字）
+ */
+export async function generateMemoryQuiz(rootNode, options = {}) {
+  const outline = extractKnowledgeOutline(rootNode, {
+    focusNodeId: options.focusNodeId,
+    maxDepth: 6,
+    includeIds: true
+  })
+
+  if (!outline) {
+    throw new Error('当前思维导图大纲为空，无法出题。')
+  }
+
+  const cfg = getJudgeAiConfig()
+  const apiKey = options.customApiKey || cfg.apiKey
+  const baseUrl = options.customBaseUrl || cfg.baseUrl
+  const model = options.customModel || cfg.modelName
+
+  if (!apiKey) {
+    throw new Error('未配置 AI API Key，请先配置。')
+  }
+
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+
+  const userPrompt = `请根据以下思维导图节点及其子节点，出一道【注重理解、以理解促记忆】的记忆性考查题（若含古诗文难写易错字，精准提取至 difficult_chars）：\n\n\`\`\`markdown\n${outline}\n\`\`\``
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: MEMORY_INTERROGATION_SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt }
+      ]
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`记忆考题生成失败 (HTTP ${response.status}): ${errorText.slice(0, 300)}`)
+  }
+
+  const resJson = await response.json()
+  const rawContent = resJson.choices?.[0]?.message?.content || ''
+  return parseModelJsonResponse(rawContent)
+}
+
+/**
+ * 自动生成【内容理解模式】考题（围绕 有哪些 / 是什么 / 为什么 / 为了什么 四维复盘）
+ */
+export async function generateUnderstandingQuiz(rootNode, options = {}) {
+  const outline = extractKnowledgeOutline(rootNode, {
+    focusNodeId: options.focusNodeId,
+    maxDepth: 6,
+    includeIds: true
+  })
+
+  if (!outline) {
+    throw new Error('当前思维导图大纲为空，无法出题。')
+  }
+
+  const cfg = getJudgeAiConfig()
+  const apiKey = options.customApiKey || cfg.apiKey
+  const baseUrl = options.customBaseUrl || cfg.baseUrl
+  const model = options.customModel || cfg.modelName
+
+  if (!apiKey) {
+    throw new Error('未配置 AI API Key，请先配置。')
+  }
+
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+  const dimension = options.dimension || 'what'
+  const dimNames = {
+    which: '【有哪些】(组成要素/分类分支/形态)',
+    what: '【是什么】(本质定义/学科表述/概念边界)',
+    why: '【为什么】(深层机理/因果推导/成立依据)',
+    for_what: '【为了什么】(目的价值/解决什么问题/实际应用)'
+  }
+  const dimName = dimNames[dimension] || '【是什么】'
+
+  const userPrompt = `请根据以下思维导图节点及其子节点，围绕维度 ${dimName}，出一道穿透性的深度理解考题：\n\n\`\`\`markdown\n${outline}\n\`\`\``
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt }
+      ]
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`理解考题生成失败 (HTTP ${response.status}): ${errorText.slice(0, 300)}`)
   }
 
   const resJson = await response.json()
