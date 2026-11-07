@@ -10,6 +10,7 @@ import VueViewer from 'v-viewer'
 import i18n from './i18n'
 import { getLang } from '@/api'
 import { restoreDirectory } from '@/api/directoryStorage'
+import { initBaiduAnalytics } from '@/utils/analytics'
 // import VConsole from 'vconsole'
 // const vConsole = new VConsole()
 
@@ -20,6 +21,7 @@ Vue.use(ElementUI)
 Vue.use(VueViewer)
 
 const initApp = async () => {
+  initBaiduAnalytics()
   i18n.locale = getLang()
   // 工作目录模式：先恢复 handle 与权限状态，避免启动时误用 localStorage 初始化。
   try {

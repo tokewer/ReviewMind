@@ -1,5 +1,6 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
+import { trackPageView } from '@/utils/analytics'
 
 Vue.use(VueRouter)
 
@@ -26,6 +27,10 @@ const routes = [
 
 const router = new VueRouter({
   routes
+})
+
+router.afterEach(to => {
+  trackPageView(to.fullPath)
 })
 
 export default router

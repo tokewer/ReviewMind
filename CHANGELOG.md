@@ -2,6 +2,15 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.4.6] - 2026-11-07
+
+### Added
+- **全站所有访客访问自动统计与 SPA 路由切换无缝上报**：
+  - **应用启动全站自动激活 (`main.js`)**：在应用入口自动初始化百度统计，无需访客进行任何本地设置，任何外部用户打开网站即可被自动计入全站流量大盘。
+  - **Vue Router 单页应用全量路由监听 (`router.js`)**：
+    - 针对 Vue 单页应用切换路由时无整页刷新的特性，在 `router.afterEach` 自动上报 `trackPageView(to.fullPath)`，全面捕获思维导图主页（`/`）、复习中心（`/review`）及帮助文档（`/doc/zh`）的真实访客流转。
+  - **全站默认统计 Token 注入支持**：在 `analytics.js` 中增加全局默认 Token 预留位与环境变量接入，保障全网访客数据即开即用汇聚至站长后台。
+
 ## [1.4.5] - 2026-11-06
 
 ### Added
