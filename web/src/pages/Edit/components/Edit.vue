@@ -61,6 +61,8 @@
     <TrashDialog></TrashDialog>
     <HistoryDialog></HistoryDialog>
     <NodeTableDialog v-if="mindMap" :mindMap="mindMap"></NodeTableDialog>
+    <AiInterrogationDialog v-if="mindMap" :mindMap="mindMap"></AiInterrogationDialog>
+    <AiAuditDrawer v-if="mindMap" :mindMap="mindMap"></AiAuditDrawer>
     <div
       class="dragMask"
       v-if="showDragMask"
@@ -166,6 +168,8 @@ import NodeImgPlacementToolbar from './NodeImgPlacementToolbar.vue'
 import NodeNoteSidebar from './NodeNoteSidebar.vue'
 import AiCreate from './AiCreate.vue'
 import AiChat from './AiChat.vue'
+import AiInterrogationDialog from './AiInterrogationDialog.vue'
+import AiAuditDrawer from './AiAuditDrawer.vue'
 import ReviewFloat from './ReviewFloat.vue'
 import ReviewGlowSync from './ReviewGlowSync.vue'
 import MasteryColorSettings from './MasteryColorSettings.vue'
@@ -235,6 +239,8 @@ export default {
     NodeNoteSidebar,
     AiCreate,
     AiChat,
+    AiInterrogationDialog,
+    AiAuditDrawer,
     ReviewFloat,
     ReviewGlowSync,
     MasteryColorSettings,

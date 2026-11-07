@@ -250,9 +250,10 @@
 
         <el-form-item label="快捷预设">
           <el-button-group>
+            <el-button size="mini" type="primary" plain @click="applyPreset('gemini')">Google Gemini 官方</el-button>
+            <el-button size="mini" @click="applyPreset('deepseek')">DeepSeek</el-button>
             <el-button size="mini" @click="applyPreset('openai')">OpenAI 默认</el-button>
             <el-button size="mini" @click="applyPreset('silicon')">硅基流动</el-button>
-            <el-button size="mini" @click="applyPreset('deepseek')">DeepSeek</el-button>
           </el-button-group>
         </el-form-item>
       </el-form>
@@ -601,7 +602,10 @@ export default {
     },
 
     applyPreset(type) {
-      if (type === 'openai') {
+      if (type === 'gemini') {
+        this.configForm.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai'
+        this.configForm.modelName = 'gemini-1.5-pro'
+      } else if (type === 'openai') {
         this.configForm.baseUrl = 'https://api.openai.com/v1'
         this.configForm.modelName = 'gpt-4o-mini'
       } else if (type === 'silicon') {

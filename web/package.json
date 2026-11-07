@@ -1,6 +1,6 @@
 {
   "name": "mind-map-main",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",

@@ -42,6 +42,14 @@
         <ReviewColorToggle></ReviewColorToggle>
         <ReviewPresetQuick></ReviewPresetQuick>
         <GlowSettings></GlowSettings>
+        <div class="toolbarBtn" @click="$bus.$emit('showAiInterrogation')" v-if="!isMobile">
+          <span class="icon el-icon-chat-dot-round" style="font-size: 16px;"></span>
+          <span class="text">AI 拷问</span>
+        </div>
+        <div class="toolbarBtn" @click="$bus.$emit('showAiAudit')" v-if="!isMobile">
+          <span class="icon el-icon-search" style="font-size: 16px;"></span>
+          <span class="text">AI 体检</span>
+        </div>
         <div class="toolbarBtn" @click="openDirectory" v-if="!isMobile">
           <span class="icon iconfont icondakai"></span>
           <span class="text">{{ $t('toolbar.directory') }}</span>

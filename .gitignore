@@ -12,3 +12,6 @@ __pycache__/
 server.log
 _site/
 *.bak
+tools/
+*.exe
+

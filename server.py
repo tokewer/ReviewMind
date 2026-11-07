@@ -13,7 +13,9 @@ import base64
 import binascii
 import tempfile
 import threading
-from urllib.parse import unquote, urlparse
+import queue
+from urllib.parse import unquote, urlparse, parse_qs
+from mcp_server import MCPServer
 
 
 def _resolve_port(default=8080):
@@ -34,11 +36,12 @@ def _resolve_port(default=8080):
     return default
 
 
-VERSION = '1.4.8'
+VERSION = '1.4.9'
 PORT = _resolve_port()
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, 'data')
 STORE_DIR = os.path.join(DATA_DIR, 'store')
+_mcp_instance = MCPServer(STORE_DIR)
 IMAGES_DIR = os.path.join(DATA_DIR, 'images')
 GZIP_EXT = ('.js', '.css', '.html', '.json', '.svg')
 
@@ -332,6 +335,82 @@ class GzipHandler(http.server.SimpleHTTPRequestHandler):
             return
         self._send_json({'ok': True, 'written': written, 'removed': removed})
 
+
+    # ---------- MCP (Model Context Protocol) 协议处理 ----------
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With')
+        self.end_headers()
+
+    def serve_mcp_sse(self):
+        session_id = _mcp_instance.create_session()
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream; charset=utf-8')
+        self.send_header('Cache-Control', 'no-cache, no-transform')
+        self.send_header('Connection', 'keep-alive')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Headers', '*')
+        self.end_headers()
+
+        endpoint_msg = f"event: endpoint\ndata: /mcp/messages?sessionId={session_id}\n\n".encode('utf-8')
+        try:
+            self.wfile.write(endpoint_msg)
+            self.wfile.flush()
+        except Exception:
+            _mcp_instance.remove_session(session_id)
+            return
+
+        q = _mcp_instance.sessions.get(session_id)
+        while True:
+            try:
+                msg = q.get(timeout=15)
+                formatted = f"event: message\ndata: {json.dumps(msg, ensure_ascii=False)}\n\n".encode('utf-8')
+                self.wfile.write(formatted)
+                self.wfile.flush()
+            except queue.Empty:
+                try:
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+                except Exception:
+                    break
+            except Exception:
+                break
+
+        _mcp_instance.remove_session(session_id)
+
+    def serve_mcp_messages(self):
+        try:
+            raw = self._read_body()
+            body = json.loads(raw.decode('utf-8'))
+        except Exception:
+            self._send_json({'jsonrpc': '2.0', 'error': {'code': -32700, 'message': 'Parse error'}}, 400)
+            return
+
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        session_id = qs.get('sessionId', [None])[0]
+
+        res = _mcp_instance.handle_rpc(body)
+
+        if session_id and res:
+            _mcp_instance.push_to_session(session_id, res)
+
+        if res is not None:
+            resp_bytes = json.dumps(res, ensure_ascii=False).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Headers', '*')
+            self.send_header('Content-Length', str(len(resp_bytes)))
+            self.end_headers()
+            self.wfile.write(resp_bytes)
+        else:
+            self.send_response(202)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
     # ---------- 路由 ----------
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -341,6 +420,8 @@ class GzipHandler(http.server.SimpleHTTPRequestHandler):
                 return self.serve_image_get(path[len('/api/image/'):])
             if path == '/api/storage':
                 return self.serve_storage_get()
+            if path in ('/mcp', '/mcp/sse'):
+                return self.serve_mcp_sse()
         except Exception:
             self.send_error(500)
             return
@@ -357,6 +438,8 @@ class GzipHandler(http.server.SimpleHTTPRequestHandler):
                 return self.serve_storage_post()
             if path in ('/api/image', '/api/image/'):
                 return self.serve_image_post()
+            if path in ('/mcp', '/mcp/messages'):
+                return self.serve_mcp_messages()
         except RequestBodyTooLarge:
             self._send_json({'ok': False, 'message': '请求体过大'}, 413)
             return

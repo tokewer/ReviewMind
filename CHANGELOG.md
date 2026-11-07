@@ -2,6 +2,23 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 规范。
 
+## [1.4.9] - 2026-11-07
+
+### Added
+- **Google Gemini 官方 MCP (Model Context Protocol) 远程关联应用协议支持**：
+  - 在 `server.py` 与 `mcp_server.py` 中原生实现标准 MCP SSE/HTTP JSON-RPC 2.0 服务端。
+  - 向 Gemini Advanced 暴露 6 大专业级工具：实时透视当前导图、跨导图检索、4 维逻辑体检、苏格拉底考官出题及 SM-2 进度查询。
+  - 配套提供 `启动Gemini关联.bat`，自动拉起安全的 Cloudflare HTTPS 隧道，一键生成 `https://.../mcp` 专属网址并自动写入剪贴板，支持直接粘贴至 Gemini 网页端的「关联应用」。
+- **AI 苏格拉底式零配置自动深度拷问系统 (`AiInterrogationDialog.vue`)**：
+  - 基于布鲁姆认知模型自动生成三阶考题（溯源本质、逻辑推导、边界反例），彻底免去人工制卡。
+  - 支持键盘输入与数位板压感手写板双模作答，AI 严苛审判打分并无缝闭环沉淀至 SM-2 间隔复习。
+- **AI 思维导图学术审校与认知纠错引擎 (`AiAuditDrawer.vue`)**：
+  - 严格践行“绝不替学生代写补全子节点”原则，专注提供 4 维体检（事实硬伤、层级倒置、前提缺失、易混伪等价）与自查思考题。
+  - 深度联动思维导图画布，点击任意问题卡片自动平移聚焦并高亮定位对应节点。
+- **配置中心新增 Google Gemini 官方预设**：
+  - 原生适配 `gemini-1.5-pro`（200 万超大上下文）与 `gemini-2.0-flash`。
+- **测试矩阵扩充**：新增大纲提纯测试与 MCP/Auditor 逻辑验证，8 个测试套件 59 项测试持续 100% 通过。
+
 ## [1.4.8] - 2026-11-07
 
 ### Fixed
