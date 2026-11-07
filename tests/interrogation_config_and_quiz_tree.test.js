@@ -8,7 +8,8 @@ import {
 import {
   detectDifficultChars,
   buildQuizMindMapTree,
-  generateQuizMindMapTree
+  generateQuizMindMapTree,
+  stripHtml
 } from '../web/src/review/mindMapAuditor.js'
 
 describe('拷问系统规则与工作流配置中心 (interrogationConfig)', () => {
@@ -82,6 +83,39 @@ describe('思维导图去答案变设问与考查细分测试 (buildQuizMindMapT
     expect(diffs).toContain('舳')
     expect(diffs).not.toContain('落')
     expect(diffs).not.toContain('天')
+  })
+
+  it('stripHtml 彻底清除节点中的 <p>、<span> 等富文本 HTML 标签', () => {
+    expect(stripHtml('<p>理论</p>')).toBe('理论')
+    expect(stripHtml('<span>【<p>原理</p>】</span>')).toBe('【原理】')
+    expect(stripHtml('&nbsp;&lt;公式&gt;&amp;')).toBe('<公式>&')
+  })
+
+  it('buildQuizMindMapTree 彻底剔除富文本 HTML 标签，保证题干与导图文本纯净', () => {
+    const mockRichMap = {
+      data: { text: '<p>理论</p>', richText: true },
+      children: [
+        {
+          data: { text: '<p>原理</p>', richText: true },
+          children: [
+            {
+              data: { text: '<p>合外力决定加速度大小与方向</p>', richText: true },
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+
+    const res = buildQuizMindMapTree(mockRichMap, { mode: 'memory' })
+    const leaf = res.root.children[0].children[0]
+    expect(leaf.data.target_node_text).toBe('原理')
+    expect(leaf.data.aspect_domain).toBe('理论 ➔ 原理')
+    expect(leaf.data.question_title).not.toContain('<p>')
+    expect(leaf.data.question_title).not.toContain('</p>')
+    expect(leaf.data.text).not.toContain('<p>')
+    expect(leaf.data.text).not.toContain('</p>')
+    expect(leaf.data.richText).toBeUndefined()
   })
 
   it('buildQuizMindMapTree 模式一构建【有什么、是什么】主力军设问树', () => {

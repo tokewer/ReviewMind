@@ -436,6 +436,21 @@ export function detectDifficultChars(text) {
  * 本地确定性构建【挖空设问思维导图】(Quiz Mind Map Tree)
  * 100% 忠实保留用户真实思维导图层级，去答案化变设问，并注入细分考查方向与视觉进度样式
  */
+/**
+ * 过滤 HTML 标签与富文本标签，保证题干与导图文本纯净
+ */
+export function stripHtml(text) {
+  if (!text || typeof text !== 'string') return ''
+  return text
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/[\r\n\t]+/g, ' ')
+    .trim()
+}
+
 export function buildQuizMindMapTree(rootNodeData, options = {}) {
   if (!rootNodeData || !rootNodeData.data) {
     throw new Error('当前思维导图大纲为空，无法构建考查导图。')
@@ -467,14 +482,19 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
 
   const traverse = (node, path = []) => {
     if (!node || !node.data) return
-    const rawText = (node.data.text || '').trim()
+    // 强制清洗富文本 HTML 标签，保证纯文本呈现
+    const rawText = stripHtml(node.data.text || '')
     const currentPath = [...path, rawText]
     const isLeaf = !node.children || node.children.length === 0
 
+    // 清除富文本标志，避免 simple-mind-map 用 HTML 渲染污染节点
+    delete node.data.richText
+    node.data.resetRichText = true
+
     if (isLeaf && rawText.length > 0 && !rawText.startsWith('❓')) {
       const qIndex = quizIndex++
-      const parentName = path.length > 0 ? path[path.length - 1] : '核心考点'
-      const breadcrumb = path.join(' ➔ ') || '主干知识网络'
+      const parentName = path.length > 0 ? stripHtml(path[path.length - 1]) : '核心考点'
+      const breadcrumb = path.map(p => stripHtml(p)).join(' ➔ ') || '主干知识网络'
 
       let dimension = 'what'
       let dimension_name = '是什么'
@@ -541,7 +561,7 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
         ? '必须包含高考核心专业术语/名句原字，生僻字书写完全正确。'
         : '必须包含严密因果推导链条与高考解题学科规范表述。'
 
-      // 视觉进度初始状态：黄色待考查
+      // 视觉进度初始状态：黄色待考查，纯文本无任何 HTML 标签
       node.data.text = `❓ 【${dimension_name}】${parentName} (${qIndex + 1})`
       node.data.fillColor = '#fefce8'
       node.data.borderColor = '#eab308'
@@ -550,6 +570,8 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
     } else {
       if (node === targetRoot) {
         node.data.text = `${rawText} [${mode === 'memory' ? '主力军考查' : '后勤部复盘'}]`
+      } else {
+        node.data.text = rawText
       }
     }
 
@@ -561,6 +583,9 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
   traverse(targetRoot, [])
 
   if (quizIndex === 0) {
+    const rawRootText = stripHtml(targetRoot.data.text || '')
+    delete targetRoot.data.richText
+    targetRoot.data.resetRichText = true
     targetRoot.data.isQuestion = true
     targetRoot.data.quizIndex = 0
     targetRoot.data.status = 'pending'
@@ -568,11 +593,11 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
     targetRoot.data.dimension_name = mode === 'memory' ? '是什么' : '为什么'
     targetRoot.data.aspect_domain = '核心知识网络'
     targetRoot.data.aspect_subdivision = mode === 'memory' ? '核心知识结构盘点' : '核心原理机制复盘'
-    targetRoot.data.target_node_text = targetRoot.data.text
-    targetRoot.data.question_title = `请对【${targetRoot.data.text}】的核心考点与知识体系发起系统阐述。`
+    targetRoot.data.target_node_text = rawRootText
+    targetRoot.data.question_title = `请对【${rawRootText}】的核心考点与知识体系发起系统阐述。`
     targetRoot.data.understanding_hint = '宏观梳理结构脉络与核心逻辑。'
-    targetRoot.data.standard_answer = targetRoot.data.text
-    targetRoot.data.text = `❓ 【${targetRoot.data.dimension_name}】${targetRoot.data.text}`
+    targetRoot.data.standard_answer = rawRootText
+    targetRoot.data.text = `❓ 【${targetRoot.data.dimension_name}】${rawRootText}`
     targetRoot.data.fillColor = '#fefce8'
     targetRoot.data.borderColor = '#eab308'
     targetRoot.data.borderWidth = 2
@@ -582,10 +607,6 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
   return { root: targetRoot }
 }
 
-/**
- * 基于思维导图节点及子节点，自动生成窗口内交互式【挖空/设问思维导图】数据结构 (Quiz Mind Map)
- * 采用本地确定性构建，确保 100% 零报错秒开呈现，完美支撑思维导图进度与细分考查
- */
 export async function generateQuizMindMapTree(rootNodeData, options = {}) {
   return buildQuizMindMapTree(rootNodeData, options)
 }

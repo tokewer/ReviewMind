@@ -625,6 +625,7 @@ import {
   resetInterrogationConfig
 } from '@/review/interrogationConfig'
 import ReviewHandwritingBoard from './ReviewHandwritingBoard.vue'
+import { stripHtml } from '@/review/mindMapAuditor'
 
 export default {
   name: 'AiInterrogationDialog',
@@ -993,17 +994,17 @@ export default {
 
       this.currentQuiz = {
         target_node_id: data.uid || data.id || `quiz_node_${index}`,
-        target_node_text: data.target_node_text || data.text || '考查概念',
+        target_node_text: stripHtml(data.target_node_text || data.text || '考查概念'),
         dimension: data.dimension || (this.selectedMode === 'memory' ? 'what' : 'why'),
         dimension_name: data.dimension_name || (this.selectedMode === 'memory' ? '是什么' : '为什么'),
-        aspect_domain: data.aspect_domain || '主干知识网络',
+        aspect_domain: stripHtml(data.aspect_domain || '主干知识网络'),
         aspect_subdivision: data.aspect_subdivision || (this.selectedMode === 'memory' ? '高考核心概念定理 · 本质定义与规范表述' : '深层因果机制链条 · 成立机理深度复盘'),
-        question: data.question_title || data.question || data.text,
-        understanding_hint: data.understanding_hint || '',
-        standard_answer: data.standard_answer || '',
+        question: stripHtml(data.question_title || data.question || data.text),
+        understanding_hint: stripHtml(data.understanding_hint || ''),
+        standard_answer: stripHtml(data.standard_answer || ''),
         has_difficult_chars: !!data.has_difficult_chars,
         difficult_chars: Array.isArray(data.difficult_chars) ? data.difficult_chars : [],
-        evaluation_criteria: data.evaluation_criteria || ''
+        evaluation_criteria: stripHtml(data.evaluation_criteria || '')
       }
 
       this.userAnswerText = ''
@@ -1021,9 +1022,11 @@ export default {
         const node = this.questionNodeList[i]
         if (!node || !node.data) continue
 
+        delete node.data.richText
+        node.data.resetRichText = true
         const status = node.data.status || 'pending'
-        const stdAns = node.data.standard_answer || '标准答案'
-        const rawTitle = node.data.target_node_text || '考点'
+        const stdAns = stripHtml(node.data.standard_answer || '标准答案')
+        const rawTitle = stripHtml(node.data.target_node_text || '考点')
         const dimName = node.data.dimension_name || '考查'
 
         if (i === activeIndex) {
