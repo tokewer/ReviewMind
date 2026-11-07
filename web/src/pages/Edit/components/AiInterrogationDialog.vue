@@ -229,7 +229,7 @@
       <!-- ================= 阶段 1：交互拷问进行中 (窗口思维导图双屏联动) ================= -->
       <div v-if="viewState === 'quiz'" class="quizWorkspace">
         <!-- 上半区：窗口内交互式思维导图画布 (实时显示复习进度：颜色与图标联动) -->
-        <div class="mindMapCanvasSection">
+        <div class="mindMapCanvasSection" :class="{ 'is-expanded': isCanvasExpanded }">
           <div class="canvasHeaderBar">
             <div class="canvasTopRow">
               <div class="canvasTitle">
@@ -237,6 +237,30 @@
                 <strong>拷问思维导图</strong>
                 <span class="subInfo">节点实时显示复习进度（颜色与图标联动）</span>
               </div>
+
+              <!-- 画布交互控制工具栏 (放大、缩小、全图自适应、聚焦定位、高度调节) -->
+              <div class="canvasToolbar">
+                <el-tooltip content="放大画布 (或按住鼠标滚轮缩放)" placement="top">
+                  <el-button size="mini" circle icon="el-icon-zoom-in" @click="zoomInQuizMap"></el-button>
+                </el-tooltip>
+                <el-tooltip content="缩小画布" placement="top">
+                  <el-button size="mini" circle icon="el-icon-zoom-out" @click="zoomOutQuizMap"></el-button>
+                </el-tooltip>
+                <el-tooltip content="全图自适应居中" placement="top">
+                  <el-button size="mini" circle icon="el-icon-aim" @click="fitQuizMap"></el-button>
+                </el-tooltip>
+                <el-tooltip content="精准定位并聚焦当前考点" placement="top">
+                  <el-button size="mini" type="primary" plain icon="el-icon-location-outline" @click="centerCurrentQuizNode">
+                    定位当前题
+                  </el-button>
+                </el-tooltip>
+                <el-tooltip :content="isCanvasExpanded ? '收起导图高度' : '展开更大导图视野'" placement="top">
+                  <el-button size="mini" :icon="isCanvasExpanded ? 'el-icon-arrow-up' : 'el-icon-arrow-down'" @click="toggleCanvasHeight">
+                    {{ isCanvasExpanded ? '收起' : '展开' }}
+                  </el-button>
+                </el-tooltip>
+              </div>
+
               <!-- 进度统计仪表盘 -->
               <div class="progressStatsBar">
                 <span class="statItem total">总设问: {{ questionNodeList.length }} 题</span>
@@ -256,13 +280,14 @@
               <span class="progressPercentText">{{ quizProgressPercent }}% 已复习</span>
             </div>
 
-            <!-- 图标与颜色图例 -->
+            <!-- 图标与颜色图例及交互手势引导 -->
             <div class="canvasLegend">
               <span class="legendItem"><span class="dot active"></span> 🎯 当前考查</span>
               <span class="legendItem"><span class="dot pending"></span> ❓ 待考查</span>
               <span class="legendItem"><span class="dot remembered"></span> ✅ 记得/🌟熟练</span>
               <span class="legendItem"><span class="dot fuzzy"></span> 🤔 模糊需巩固</span>
               <span class="legendItem"><span class="dot forgot"></span> ❌ 忘记待攻克</span>
+              <span class="legendTip">💡 鼠标左键拖拽平移，滚轮缩放，点击节点可直达设问</span>
             </div>
           </div>
 
@@ -612,6 +637,8 @@
 
 <script>
 import MindMap from 'simple-mind-map'
+import Themes from 'simple-mind-map-plugin-themes'
+Themes.init(MindMap)
 import {
   generateMemoryQuiz,
   generateUnderstandingQuiz,
@@ -648,6 +675,7 @@ export default {
 
       // 阶段状态: 'setup' (前置准备与选择), 'quiz' (导图拷问工作台), 'report' (考核报告)
       viewState: 'setup',
+      isCanvasExpanded: false,
 
       // 模式: 'memory' (内容记忆), 'understanding' (内容理解), 'exam' (应试训练)
       selectedMode: 'understanding',
@@ -699,7 +727,10 @@ export default {
         setTimeout(() => {
           if (this.quizMindMapInstance) {
             this.quizMindMapInstance.resize()
-            this.quizMindMapInstance.fit()
+            if (this.quizMindMapInstance.view) {
+              this.quizMindMapInstance.view.fit()
+            }
+            this.centerCurrentQuizNode()
           }
         }, 150)
       })
@@ -938,9 +969,12 @@ export default {
             el: container,
             data: JSON.parse(JSON.stringify(treeRoot)),
             readonly: true,
-            fit: true,
+            fit: false,
+            fitPadding: 24,
             layout: 'logicalStructure',
             theme: 'classicGreen',
+            mousewheelAction: 'zoom',
+            mouseScaleCenterUseMousePosition: true,
             enableAutoEnterTextEditWhenKeydown: false,
             nodeTextEditZIndex: 10,
             nodeNoteTooltipZIndex: 10
@@ -958,10 +992,12 @@ export default {
           setTimeout(() => {
             if (this.quizMindMapInstance) {
               this.quizMindMapInstance.resize()
-              this.quizMindMapInstance.fit()
+              if (this.quizMindMapInstance.view) {
+                this.quizMindMapInstance.view.fit()
+              }
               this.syncActiveNodeToMindMap(this.currentQuestionIndex)
             }
-          }, 100)
+          }, 120)
         } catch (err) {
           console.error('初始化窗口导图失败:', err)
         }
@@ -979,6 +1015,47 @@ export default {
     },
     onDialogClose() {
       this.destroyQuizMindMap()
+    },
+    zoomInQuizMap() {
+      if (this.quizMindMapInstance && this.quizMindMapInstance.view) {
+        this.quizMindMapInstance.view.enlarge()
+      }
+    },
+    zoomOutQuizMap() {
+      if (this.quizMindMapInstance && this.quizMindMapInstance.view) {
+        this.quizMindMapInstance.view.narrow()
+      }
+    },
+    fitQuizMap() {
+      if (this.quizMindMapInstance && this.quizMindMapInstance.view) {
+        this.quizMindMapInstance.view.fit()
+      }
+    },
+    centerCurrentQuizNode() {
+      if (!this.quizMindMapInstance || !this.quizMindMapInstance.renderer) return
+      const current = this.questionNodeList[this.currentQuestionIndex]
+      const uid = current?.data?.uid || current?.data?.id
+      if (uid) {
+        const target = this.quizMindMapInstance.renderer.findNodeByUid(uid)
+        if (target) {
+          this.quizMindMapInstance.renderer.moveNodeToCenter(target)
+          return
+        }
+      }
+      this.quizMindMapInstance.renderer.setRootNodeCenter()
+    },
+    toggleCanvasHeight() {
+      this.isCanvasExpanded = !this.isCanvasExpanded
+      this.$nextTick(() => {
+        setTimeout(() => {
+          if (this.quizMindMapInstance) {
+            this.quizMindMapInstance.resize()
+            if (this.quizMindMapInstance.view) {
+              this.quizMindMapInstance.view.fit()
+            }
+          }
+        }, 150)
+      })
     },
     backToSetup() {
       this.destroyQuizMindMap()
@@ -1077,8 +1154,14 @@ export default {
 
       try {
         this.quizMindMapInstance.setData(JSON.parse(JSON.stringify(this.quizTreeData.root)))
-        this.quizMindMapInstance.render()
       } catch (e) {}
+
+      // 同步定位当前聚焦考查节点居中
+      this.$nextTick(() => {
+        setTimeout(() => {
+          this.centerCurrentQuizNode()
+        }, 60)
+      })
     },
     revealMentalAnswer() {
       this.isAnswerRevealed = true
@@ -1100,7 +1183,6 @@ export default {
       if (this.quizMindMapInstance) {
         try {
           this.quizMindMapInstance.setData(JSON.parse(JSON.stringify(this.quizTreeData.root)))
-          this.quizMindMapInstance.render()
         } catch (e) {}
       }
     },
@@ -1571,6 +1653,12 @@ export default {
           }
         }
 
+        .canvasToolbar {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
         .progressStatsBar {
           display: flex;
           gap: 8px;
@@ -1642,17 +1730,30 @@ export default {
             &.forgot { background: #ef4444; }
           }
         }
+
+        .legendTip {
+          margin-left: auto;
+          font-size: 11px;
+          color: #0284c7;
+        }
       }
     }
 
     .canvasContainer {
-      height: 320px;
-      min-height: 320px;
+      height: 250px;
+      min-height: 180px;
       width: 100%;
       min-width: 100%;
       position: relative;
       background: #f8fafc;
       overflow: hidden;
+      transition: height 0.25s ease;
+    }
+
+    &.is-expanded {
+      .canvasContainer {
+        height: 440px;
+      }
     }
   }
 
@@ -2081,6 +2182,58 @@ export default {
     padding-top: 16px;
     border-top: 1px solid #e2e8f0;
     margin-top: 10px;
+  }
+}
+</style>
+
+<style lang="less">
+.el-dialog__wrapper {
+  .el-dialog.aiInterrogationDialog {
+    margin-top: 2vh !important;
+    margin-bottom: 2vh !important;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    &:not(.is-fullscreen) {
+      max-height: 96vh;
+    }
+
+    &.is-fullscreen {
+      margin: 0 !important;
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+
+      .el-dialog__body {
+        max-height: calc(100vh - 54px);
+      }
+      
+      .mindMapCanvasSection {
+        .canvasContainer {
+          height: 360px;
+        }
+        &.is-expanded .canvasContainer {
+          height: 540px;
+        }
+      }
+    }
+
+    .el-dialog__header {
+      padding: 12px 18px 8px;
+      border-bottom: 1px solid #f1f5f9;
+      background: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .el-dialog__body {
+      padding: 10px 16px 16px;
+      max-height: 88vh;
+      overflow-y: auto;
+      background: #f8fafc;
+      flex: 1;
+    }
   }
 }
 </style>

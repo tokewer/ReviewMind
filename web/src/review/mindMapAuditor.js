@@ -439,16 +439,23 @@ export function detectDifficultChars(text) {
 /**
  * 过滤 HTML 标签与富文本标签，保证题干与导图文本纯净
  */
+const HTML_TAG_REGEX = /<(?:\/?[a-zA-Z][a-zA-Z0-9:-]*|!--)[\s\S]*?>/g
+
 export function stripHtml(text) {
   if (!text || typeof text !== 'string') return ''
-  return text
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/[\r\n\t]+/g, ' ')
-    .trim()
+  let res = text
+  for (let i = 0; i < 3; i++) {
+    const prev = res
+    res = res
+      .replace(HTML_TAG_REGEX, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&amp;/gi, '&')
+      .replace(HTML_TAG_REGEX, '')
+    if (res === prev) break
+  }
+  return res.replace(/\s+/g, ' ').trim()
 }
 
 export function buildQuizMindMapTree(rootNodeData, options = {}) {
@@ -482,6 +489,7 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
 
   const traverse = (node, path = []) => {
     if (!node || !node.data) return
+    node.data.expand = true
     // 强制清洗富文本 HTML 标签，保证纯文本呈现
     const rawText = stripHtml(node.data.text || '')
     const currentPath = [...path, rawText]
@@ -490,6 +498,12 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
     // 清除富文本标志，避免 simple-mind-map 用 HTML 渲染污染节点
     delete node.data.richText
     node.data.resetRichText = true
+    if (node.data.generalization) {
+      delete node.data.generalization.richText
+      node.data.generalization.resetRichText = true
+      node.data.generalization.expand = true
+      node.data.generalization.text = stripHtml(node.data.generalization.text || '')
+    }
 
     if (isLeaf && rawText.length > 0 && !rawText.startsWith('❓')) {
       const qIndex = quizIndex++
@@ -586,6 +600,7 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
     const rawRootText = stripHtml(targetRoot.data.text || '')
     delete targetRoot.data.richText
     targetRoot.data.resetRichText = true
+    targetRoot.data.expand = true
     targetRoot.data.isQuestion = true
     targetRoot.data.quizIndex = 0
     targetRoot.data.status = 'pending'

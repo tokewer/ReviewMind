@@ -6,16 +6,23 @@ const TAG_REGEX = /<[^>]+>/g
 /**
  * 过滤 HTML 标签与实体字符
  */
+const HTML_TAG_REGEX = /<(?:\/?[a-zA-Z][a-zA-Z0-9:-]*|!--)[\s\S]*?>/g
+
 export function stripHtml(text) {
   if (!text || typeof text !== 'string') return ''
-  return text
-    .replace(TAG_REGEX, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/[\r\n\t]+/g, ' ')
-    .trim()
+  let res = text
+  for (let i = 0; i < 3; i++) {
+    const prev = res
+    res = res
+      .replace(HTML_TAG_REGEX, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&amp;/gi, '&')
+      .replace(HTML_TAG_REGEX, '')
+    if (res === prev) break
+  }
+  return res.replace(/\s+/g, ' ').trim()
 }
 
 /**
