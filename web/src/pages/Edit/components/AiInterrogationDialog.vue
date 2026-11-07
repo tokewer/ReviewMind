@@ -1,12 +1,62 @@
 <template>
   <el-dialog
-    title="🧠 AI 深度拷问系统"
+    :title="dialogTitle"
     :visible.sync="visible"
-    width="760px"
+    :width="isFullscreen ? '100%' : '1020px'"
+    :fullscreen="isFullscreen"
     :append-to-body="true"
     custom-class="aiInterrogationDialog"
+    @close="onDialogClose"
   >
     <div class="dialogBody" v-loading="loading" :element-loading-text="loadingText">
+      <!-- 弹窗顶栏全局操作区 -->
+      <div class="globalTopHeader">
+        <div class="leftMeta">
+          <el-tag size="small" :type="selectedMode === 'memory' ? 'warning' : 'primary'" effect="dark">
+            {{ selectedMode === 'memory' ? '📖 内容记忆模式' : '🔍 内容理解模式' }}
+          </el-tag>
+          <span class="targetBadge" v-if="viewState !== 'setup'">
+            🎯 目标：<strong>{{ targetScope === 'all' ? '全图宏观知识网络' : (selectedNodeSummary ? selectedNodeSummary.text : '指定分支') }}</strong>
+          </span>
+        </div>
+
+        <div class="rightActions">
+          <el-button
+            v-if="viewState !== 'setup'"
+            size="mini"
+            type="text"
+            icon="el-icon-back"
+            @click="backToSetup"
+          >
+            重选模式/节点
+          </el-button>
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-document"
+            @click="openRulesDrawer"
+          >
+            📋 规则与工作流
+          </el-button>
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-setting"
+            @click="openConfig"
+          >
+            API 配置
+          </el-button>
+          <el-button
+            size="mini"
+            type="text"
+            :icon="isFullscreen ? 'el-icon-bottom-left' : 'el-icon-full-screen'"
+            @click="isFullscreen = !isFullscreen"
+          >
+            {{ isFullscreen ? '窗口化' : '全屏' }}
+          </el-button>
+        </div>
+      </div>
+
       <!-- ================= 阶段 0：前置选择模式与考查节点 ================= -->
       <div v-if="viewState === 'setup'" class="setupContainer">
         <!-- 1. 选择考查节点 -->
@@ -102,7 +152,7 @@
                 <span class="modeName">内容记忆模式</span>
               </div>
               <p class="modeDesc">
-                帮我记忆内容：英语作文素材/高级句型、语文古诗文名句默写、各学科核心背诵考点。
+                帮我记忆内容：英语作文素材/高级句型、语文古诗文名句默写、各学科核心背诵考点。去答案化转化为设问导图。
               </p>
               <div class="modeFeatures">
                 <span class="featItem">💡 以语境理解驱动记忆</span>
@@ -123,7 +173,7 @@
                 <span class="modeName">内容理解模式</span>
               </div>
               <p class="modeDesc">
-                通过对我进行关于内容【有哪些、是什么、为什么、为了什么】方面的知识点复盘提问。
+                围绕【有哪些、是什么、为什么、为了什么】知识点四维深度复盘提问，纯思维逻辑推演。
               </p>
               <div class="modeFeatures">
                 <span class="featItem">📐 四大认知维度循序渐进</span>
@@ -150,6 +200,13 @@
           </div>
         </div>
 
+        <!-- 规则快速提示栏 -->
+        <div class="rulesQuickHint">
+          <span class="hintIcon">📋</span>
+          <span class="hintText">当前已载入规则与工作流：注重理解、生僻字定向手写、AI不自动篡改复习安排。</span>
+          <el-button type="text" size="mini" @click="openRulesDrawer">点击自定义修改规则与工作流 ➔</el-button>
+        </div>
+
         <!-- 底部启动按钮 -->
         <div class="setupFooter">
           <el-button size="small" icon="el-icon-setting" @click="openConfig">
@@ -162,218 +219,218 @@
             :disabled="targetScope === 'node' && !focusNodeId"
             @click="startInterrogationSession"
           >
-            开启深度拷问 ➔
+            构建窗口思维导图并开启拷问 ➔
           </el-button>
         </div>
       </div>
 
-      <!-- ================= 阶段 1：交互拷问进行中 ================= -->
-      <div v-if="viewState === 'quiz'" class="quizContainer">
-        <!-- 顶部信息栏 -->
-        <div class="quizTopBar">
-          <div class="modeTagBox">
-            <el-tag size="small" :type="selectedMode === 'memory' ? 'warning' : 'primary'" effect="dark">
-              {{ selectedMode === 'memory' ? '📖 内容记忆模式' : '🔍 内容理解模式' }}
-            </el-tag>
-            <span class="targetNodeTag">
-              🎯 靶向：<strong>{{ targetScope === 'all' ? '全图宏观知识' : (selectedNodeSummary ? selectedNodeSummary.text : '指定分支') }}</strong>
-            </span>
+      <!-- ================= 阶段 1：交互拷问进行中 (窗口思维导图双屏联动) ================= -->
+      <div v-if="viewState === 'quiz'" class="quizWorkspace">
+        <!-- 上半区：窗口内交互式思维导图画布 (去答案变问题，支持实时动态翻牌) -->
+        <div class="mindMapCanvasSection">
+          <div class="canvasHeaderBar">
+            <div class="canvasTitle">
+              <span class="icon">🗺️</span>
+              <strong>拷问思维导图（已去答案变设问）</strong>
+              <span class="subInfo">点击上方任意 ❓ 节点即可切换作答；答对或揭晓后节点自动翻牌变绿 ✅</span>
+            </div>
+            <div class="canvasLegend">
+              <span class="legendItem"><span class="dot question"></span> 待考查设问</span>
+              <span class="legendItem"><span class="dot passed"></span> 已过关/翻牌</span>
+              <span class="legendItem"><span class="dot active"></span> 当前聚焦</span>
+            </div>
           </div>
 
-          <div class="topOps">
-            <el-button size="mini" type="text" icon="el-icon-back" @click="backToSetup">
-              重选模式/节点
+          <!-- simple-mind-map 渲染容器 -->
+          <div class="canvasContainer" ref="quizMindMapRef"></div>
+        </div>
+
+        <!-- 下半区：靶向答题、手写与自评控制台 -->
+        <div class="quizConsoleSection">
+          <!-- 考题展示卡片 -->
+          <div v-if="currentQuiz" class="questionCard">
+            <div class="qHeader">
+              <el-tag size="mini" type="primary">
+                {{ currentQuiz.dimension_name || (selectedMode === 'memory' ? '内容记忆' : '深度理解') }}
+              </el-tag>
+              <span class="qTargetNode">📌 聚焦导图节点：<strong>{{ currentQuiz.target_node_text }}</strong></span>
+              <span class="qProgressBadge">进度：{{ currentQuestionIndex + 1 }} / {{ questionNodeList.length }}</span>
+            </div>
+            <div class="qText">
+              {{ currentQuiz.question }}
+            </div>
+            <div v-if="currentQuiz.understanding_hint" class="qHint">
+              <span class="hintIcon">💡 思考引导支架：</span>
+              <span class="hintContent">{{ currentQuiz.understanding_hint }}</span>
+            </div>
+          </div>
+
+          <!-- 作答形式切换栏 -->
+          <div class="answerMethodBar">
+            <span class="barLabel">作答方式：</span>
+            <el-radio-group v-model="answerType" size="mini">
+              <el-radio-button label="mental">💭 心中默答 (看答案自评)</el-radio-button>
+              <el-radio-button label="text">✍️ 键盘输入作答 (交由AI评分)</el-radio-button>
+            </el-radio-group>
+          </div>
+
+          <!-- 作答主区 A：心中默答 (看答案自评) -->
+          <div v-if="answerType === 'mental'" class="mentalAnswerBox">
+            <div v-if="!isAnswerRevealed" class="mentalPrompt">
+              <p>请在心中思考推导或背诵该内容。准备完毕后，点击下方按钮核对标准答案与解析。</p>
+              <el-button
+                type="primary"
+                size="medium"
+                icon="el-icon-view"
+                @click="revealMentalAnswer"
+              >
+                👀 揭晓标准答案与采分解析（导图节点将同步翻牌）
+              </el-button>
+            </div>
+
+            <div v-else class="revealedContent">
+              <div class="standardAnswerCard">
+                <div class="cardTitle">✅ 官方标准答案 / 完整表述：</div>
+                <div class="cardBody">{{ currentQuiz.standard_answer || currentQuiz.evaluation_criteria }}</div>
+              </div>
+
+              <div v-if="currentQuiz.evaluation_criteria && currentQuiz.evaluation_criteria !== currentQuiz.standard_answer" class="criteriaCard">
+                <div class="cardTitle">📌 答题采分关键点：</div>
+                <div class="cardBody">{{ currentQuiz.evaluation_criteria }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 作答主区 B：键盘输入作答 (交由AI评分) -->
+          <div v-else class="textAnswerBox">
+            <el-input
+              type="textarea"
+              :rows="3"
+              placeholder="请在此输入您的推导过程、理解回答或背诵文本..."
+              v-model="userAnswerText"
+              :disabled="judging || !!currentJudgeResult"
+            ></el-input>
+
+            <div class="submitRow" v-if="!currentJudgeResult">
+              <el-button
+                type="success"
+                size="small"
+                icon="el-icon-check"
+                @click="submitTextAnswer"
+                :disabled="!userAnswerText.trim() || judging"
+                :loading="judging"
+              >
+                {{ judging ? '考官严苛审判中...' : '提交答案 · 接受审判' }}
+              </el-button>
+            </div>
+
+            <!-- AI 审判结果反馈 -->
+            <div v-if="currentJudgeResult" class="judgeFeedbackBox">
+              <div class="judgeHeader">
+                <el-tag size="small" :type="getGradeTagType(currentJudgeResult.grade)">
+                  考官评分：{{ getGradeLabel(currentJudgeResult.grade) }}
+                </el-tag>
+              </div>
+              <div class="critiqueText">
+                <strong>【考官点评】</strong>：{{ currentJudgeResult.interrogation_critique }}
+              </div>
+              <div v-if="currentQuiz.standard_answer" class="standardRef">
+                <strong>【标准参考】</strong>：{{ currentQuiz.standard_answer }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 特别模块（仅限内容记忆模式）：生僻/易错字田字格书写专项训练 -->
+          <div
+            v-if="selectedMode === 'memory' && currentQuiz.has_difficult_chars && currentQuiz.difficult_chars && currentQuiz.difficult_chars.length && (isAnswerRevealed || currentJudgeResult)"
+            class="difficultCharsSection"
+          >
+            <div class="secHeader">
+              <span class="icon">🖋️</span>
+              <strong>古诗文生僻/易错字书写专练</strong>
+              <span class="subTip">检测到本句易错生僻字：</span>
+              <el-tag
+                v-for="char in currentQuiz.difficult_chars"
+                :key="char"
+                type="danger"
+                size="small"
+                class="charTag"
+              >
+                {{ char }}
+              </el-tag>
+            </div>
+            <p class="secDesc">遵循“仅对难写字练字”原则，无需通篇抄写，仅需在下方数位板中练习以上易错字。</p>
+
+            <div class="handwritingWrapper">
+              <ReviewHandwritingBoard
+                :card="difficultCharCard"
+                :is-dark="false"
+              />
+            </div>
+          </div>
+
+          <!-- 用户自主决定复习安排控制台 (AI 绝不强制自动篡改复习安排) -->
+          <div v-if="isAnswerRevealed || currentJudgeResult" class="manualScheduleSection">
+            <div class="manualHeader">
+              <span class="icon">🗓️</span>
+              <span class="title">手动选择复习安排（由您自主决定是否更新该节点进度）：</span>
+            </div>
+
+            <div class="ratingButtonsRow">
+              <el-button
+                size="small"
+                :type="manualRating === 'mastered' ? 'success' : 'default'"
+                @click="applyManualSchedule('mastered')"
+              >
+                🌟 熟练掌握
+              </el-button>
+              <el-button
+                size="small"
+                :type="manualRating === 'remember' ? 'primary' : 'default'"
+                @click="applyManualSchedule('remember')"
+              >
+                ✅ 记得 (推进周期)
+              </el-button>
+              <el-button
+                size="small"
+                :type="manualRating === 'fuzzy' ? 'warning' : 'default'"
+                @click="applyManualSchedule('fuzzy')"
+              >
+                🤔 模糊 (间隔减半)
+              </el-button>
+              <el-button
+                size="small"
+                :type="manualRating === 'forgot' ? 'danger' : 'default'"
+                @click="applyManualSchedule('forgot')"
+              >
+                ❌ 忘记 (今日重背)
+              </el-button>
+            </div>
+
+            <div v-if="scheduleFeedbackMsg" class="feedbackStatus">
+              {{ scheduleFeedbackMsg }}
+            </div>
+          </div>
+
+          <!-- 底部流转按钮 -->
+          <div v-if="isAnswerRevealed || currentJudgeResult" class="quizFooterRow">
+            <el-button
+              v-if="currentQuestionIndex > 0"
+              size="small"
+              icon="el-icon-arrow-left"
+              @click="prevQuestion"
+            >
+              上一问
             </el-button>
-            <el-button size="mini" type="text" icon="el-icon-setting" @click="openConfig">
-              API 配置
-            </el-button>
-          </div>
-        </div>
-
-        <!-- 内容理解模式的四维步骤指示条 -->
-        <div v-if="selectedMode === 'understanding'" class="dimensionStepsBar">
-          <el-steps :active="understandingIndex" finish-status="success" align-center size="mini">
-            <el-step title="第 1 维" description="有哪些"></el-step>
-            <el-step title="第 2 维" description="是什么"></el-step>
-            <el-step title="第 3 维" description="为什么"></el-step>
-            <el-step title="第 4 维" description="为了什么"></el-step>
-          </el-steps>
-        </div>
-
-        <!-- 考题展示卡片 -->
-        <div v-if="currentQuiz" class="questionCard">
-          <div class="qHeader">
-            <el-tag size="mini" type="info">
-              {{ selectedMode === 'understanding' ? currentQuiz.dimension_name : '核心考查' }}
-            </el-tag>
-            <span class="qTargetNode">📌 考查节点：{{ currentQuiz.target_node_text || '核心概念' }}</span>
-          </div>
-          <div class="qText">
-            {{ currentQuiz.question }}
-          </div>
-          <div v-if="currentQuiz.understanding_hint" class="qHint">
-            <span class="hintIcon">💡 思考引导支架：</span>
-            <span class="hintContent">{{ currentQuiz.understanding_hint }}</span>
-          </div>
-        </div>
-
-        <!-- 作答形式切换栏 -->
-        <div class="answerMethodBar">
-          <span class="barLabel">作答方式：</span>
-          <el-radio-group v-model="answerType" size="mini">
-            <el-radio-button label="mental">💭 心中默答 (看答案自评)</el-radio-button>
-            <el-radio-button label="text">✍️ 键盘输入作答 (交由AI评分)</el-radio-button>
-          </el-radio-group>
-        </div>
-
-        <!-- 作答主区 A：心中默答 (看答案自评) -->
-        <div v-if="answerType === 'mental'" class="mentalAnswerBox">
-          <div v-if="!isAnswerRevealed" class="mentalPrompt">
-            <p>请在心中思考推导或背诵该内容。准备完毕后，点击下方按钮核对标准答案与解析。</p>
             <el-button
               type="primary"
               size="medium"
-              icon="el-icon-view"
-              @click="isAnswerRevealed = true"
+              icon="el-icon-right"
+              @click="nextQuestion"
             >
-              👀 揭晓标准答案与采分解析
+              {{ isLastQuestion ? '完成考查，查看全景报告 ➔' : '进入下一问 ➔' }}
             </el-button>
           </div>
-
-          <div v-else class="revealedContent">
-            <div class="standardAnswerCard">
-              <div class="cardTitle">✅ 官方标准答案 / 完整表述：</div>
-              <div class="cardBody">{{ currentQuiz.standard_answer || currentQuiz.evaluation_criteria }}</div>
-            </div>
-
-            <div v-if="currentQuiz.evaluation_criteria && currentQuiz.evaluation_criteria !== currentQuiz.standard_answer" class="criteriaCard">
-              <div class="cardTitle">📌 答题采分关键点：</div>
-              <div class="cardBody">{{ currentQuiz.evaluation_criteria }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 作答主区 B：键盘输入作答 (交由AI评分) -->
-        <div v-else class="textAnswerBox">
-          <el-input
-            type="textarea"
-            :rows="4"
-            placeholder="请在此输入您的推导过程、理解回答或背诵文本..."
-            v-model="userAnswerText"
-            :disabled="judging || !!currentJudgeResult"
-          ></el-input>
-
-          <div class="submitRow" v-if="!currentJudgeResult">
-            <el-button
-              type="success"
-              size="small"
-              icon="el-icon-check"
-              @click="submitTextAnswer"
-              :disabled="!userAnswerText.trim() || judging"
-              :loading="judging"
-            >
-              {{ judging ? '考官严苛审判中...' : '提交答案 · 接受审判' }}
-            </el-button>
-          </div>
-
-          <!-- AI 审判结果反馈 -->
-          <div v-if="currentJudgeResult" class="judgeFeedbackBox">
-            <div class="judgeHeader">
-              <el-tag size="small" :type="getGradeTagType(currentJudgeResult.grade)">
-                考官评分：{{ getGradeLabel(currentJudgeResult.grade) }}
-              </el-tag>
-            </div>
-            <div class="critiqueText">
-              <strong>【考官点评】</strong>：{{ currentJudgeResult.interrogation_critique }}
-            </div>
-            <div v-if="currentQuiz.standard_answer" class="standardRef">
-              <strong>【标准参考】</strong>：{{ currentQuiz.standard_answer }}
-            </div>
-          </div>
-        </div>
-
-        <!-- 特别模块（仅限内容记忆模式）：生僻/易错字田字格书写专项训练 -->
-        <div
-          v-if="selectedMode === 'memory' && currentQuiz.has_difficult_chars && currentQuiz.difficult_chars && currentQuiz.difficult_chars.length && (isAnswerRevealed || currentJudgeResult)"
-          class="difficultCharsSection"
-        >
-          <div class="secHeader">
-            <span class="icon">🖋️</span>
-            <strong>古诗文生僻/易错字书写专练</strong>
-            <span class="subTip">检测到本句易错生僻字：</span>
-            <el-tag
-              v-for="char in currentQuiz.difficult_chars"
-              :key="char"
-              type="danger"
-              size="small"
-              class="charTag"
-            >
-              {{ char }}
-            </el-tag>
-          </div>
-          <p class="secDesc">遵循“仅对难写字练字”原则，无需通篇抄写，仅需在下方数位板中练习以上易错字。</p>
-
-          <div class="handwritingWrapper">
-            <ReviewHandwritingBoard
-              :card="difficultCharCard"
-              :is-dark="false"
-            />
-          </div>
-        </div>
-
-        <!-- 用户自主决定复习安排控制台 (AI 绝不强制自动篡改复习安排) -->
-        <div v-if="isAnswerRevealed || currentJudgeResult" class="manualScheduleSection">
-          <div class="manualHeader">
-            <span class="icon">🗓️</span>
-            <span class="title">手动选择复习安排（由您决定是否更新该节点进度）：</span>
-          </div>
-
-          <div class="ratingButtonsRow">
-            <el-button
-              size="small"
-              :type="manualRating === 'mastered' ? 'success' : 'default'"
-              @click="applyManualSchedule('mastered')"
-            >
-              🌟 熟练掌握
-            </el-button>
-            <el-button
-              size="small"
-              :type="manualRating === 'remember' ? 'primary' : 'default'"
-              @click="applyManualSchedule('remember')"
-            >
-              ✅ 记得 (推进周期)
-            </el-button>
-            <el-button
-              size="small"
-              :type="manualRating === 'fuzzy' ? 'warning' : 'default'"
-              @click="applyManualSchedule('fuzzy')"
-            >
-              🤔 模糊 (间隔减半)
-            </el-button>
-            <el-button
-              size="small"
-              :type="manualRating === 'forgot' ? 'danger' : 'default'"
-              @click="applyManualSchedule('forgot')"
-            >
-              ❌ 忘记 (今日重背)
-            </el-button>
-          </div>
-
-          <div v-if="scheduleFeedbackMsg" class="feedbackStatus">
-            {{ scheduleFeedbackMsg }}
-          </div>
-        </div>
-
-        <!-- 底部流转按钮 -->
-        <div v-if="isAnswerRevealed || currentJudgeResult" class="quizFooterRow">
-          <el-button
-            type="primary"
-            size="medium"
-            icon="el-icon-right"
-            @click="nextQuestion"
-          >
-            {{ isLastQuestion ? '查看本轮考核综合报告 ➔' : '进入下一问 ➔' }}
-          </el-button>
         </div>
       </div>
 
@@ -383,8 +440,8 @@
           <div class="reportBadge">
             <span class="scoreIcon">🏆</span>
             <div class="scoreInfo">
-              <span class="title">本轮拷问复盘报告</span>
-              <span class="sub">已完成全部问题考查，思维与记忆链路已沉淀</span>
+              <span class="title">本轮导图拷问复盘报告</span>
+              <span class="sub">窗口思维导图全部盲区与设问已全部过关翻牌</span>
             </div>
           </div>
         </div>
@@ -406,7 +463,7 @@
               {{ record.quiz.question }}
             </div>
             <div class="recordAnswer">
-              <strong>您的作答：</strong>
+              <strong>作答结果：</strong>
               <span>{{ record.answerText || '心中默答对照解析' }}</span>
             </div>
             <div v-if="record.judgeResult" class="recordCritique">
@@ -425,19 +482,100 @@
         </div>
       </div>
     </div>
+
+    <!-- ================= 规则与工作流开放编写抽屉 ================= -->
+    <el-drawer
+      title="📋 拷问规则与工作流程编排中心"
+      :visible.sync="rulesDrawerVisible"
+      size="520px"
+      :append-to-body="true"
+      custom-class="rulesConfigDrawer"
+    >
+      <div class="drawerBody" v-if="rulesForm">
+        <el-alert
+          title="在此您可以自由编写、人工追加或定制 AI 考官规则与工作流，系统将以此为最高指导原则生成题目。"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px;"
+        />
+
+        <el-form label-position="top" size="small">
+          <el-form-item label="📖 【内容记忆模式】系统规则与提示词（可自由编辑追加）：">
+            <el-input
+              type="textarea"
+              :rows="4"
+              v-model="rulesForm.memoryCustomRules"
+              placeholder="请输入内容记忆模式的考查规则..."
+            ></el-input>
+          </el-form-item>
+
+          <el-form-item label="🔍 【内容理解模式】系统规则与提示词（可自由编辑追加）：">
+            <el-input
+              type="textarea"
+              :rows="4"
+              v-model="rulesForm.understandingCustomRules"
+              placeholder="请输入内容理解模式的考查规则..."
+            ></el-input>
+          </el-form-item>
+
+          <el-form-item label="🎯 自定义学科/场景附加指令（如：针对高考英语注重同义替换、针对物理注重受力分析）：">
+            <el-input
+              type="textarea"
+              :rows="3"
+              v-model="rulesForm.customExtraInstructions"
+              placeholder="输入针对您当前科目的定制要求..."
+            ></el-input>
+          </el-form-item>
+
+          <el-divider content-position="left">工作流程编排选项</el-divider>
+
+          <el-form-item label="工作流程开关：">
+            <div class="workflowSwitchGroup">
+              <el-checkbox v-model="rulesForm.workflow.requireUnderstandingFirst">
+                先考意境/逻辑理解，再引导回忆背诵
+              </el-checkbox>
+              <el-checkbox v-model="rulesForm.workflow.tianzigeDifficultCharsOnly">
+                仅易错难写字激活数位板田字格手写（普通内容免练手写）
+              </el-checkbox>
+              <el-checkbox v-model="rulesForm.workflow.allowMentalAnswer">
+                开启心中默答（看答案自评）
+              </el-checkbox>
+              <el-checkbox v-model="rulesForm.workflow.autoFlipNodeOnPass">
+                答对或看答案后，导图对应节点自动翻牌变绿显示标准答案
+              </el-checkbox>
+            </div>
+          </el-form-item>
+        </el-form>
+
+        <div class="drawerFooter">
+          <el-button size="small" @click="resetToDefaultRules">
+            恢复官方推荐规则与工作流
+          </el-button>
+          <el-button type="primary" size="small" icon="el-icon-check" @click="saveCustomRules">
+            保存规则并生效
+          </el-button>
+        </div>
+      </div>
+    </el-drawer>
   </el-dialog>
 </template>
 
 <script>
+import MindMap from 'simple-mind-map'
 import {
   generateMemoryQuiz,
-  generateUnderstandingQuiz
+  generateUnderstandingQuiz,
+  generateQuizMindMapTree
 } from '@/review/mindMapAuditor'
 import { getJudgeAiConfig } from '@/review/handwritingJudge'
 import { rateReview } from '@/review/index'
+import {
+  getInterrogationConfig,
+  saveInterrogationConfig,
+  resetInterrogationConfig
+} from '@/review/interrogationConfig'
 import ReviewHandwritingBoard from './ReviewHandwritingBoard.vue'
-
-const UNDERSTANDING_DIMS = ['which', 'what', 'why', 'for_what']
 
 export default {
   name: 'AiInterrogationDialog',
@@ -453,11 +591,12 @@ export default {
   data() {
     return {
       visible: false,
+      isFullscreen: false,
       loading: false,
       loadingText: 'AI 考官正在生成题目...',
       judging: false,
 
-      // 阶段状态: 'setup' (前置准备与选择), 'quiz' (拷问中), 'report' (考核报告)
+      // 阶段状态: 'setup' (前置准备与选择), 'quiz' (导图拷问工作台), 'report' (考核报告)
       viewState: 'setup',
 
       // 模式: 'memory' (内容记忆), 'understanding' (内容理解), 'exam' (应试训练)
@@ -469,14 +608,13 @@ export default {
       allMapNodes: [],
       selectedNodeSummary: null,
 
-      // 内容理解四维索引: 0(有哪些), 1(是什么), 2(为什么), 3(为了什么)
-      understandingIndex: 0,
+      // 导图拷问树与节点列表
+      quizTreeData: null,
+      quizMindMapInstance: null,
+      questionNodeList: [], // 导图中所有是 question 的节点扁平引用
+      currentQuestionIndex: 0,
 
-      // 内容记忆题号索引: 0, 1, 2
-      memoryIndex: 0,
-      memoryTotalQuestions: 3,
-
-      // 当前题目与作答
+      // 当前聚焦题目与作答
       currentQuiz: null,
       answerType: 'mental', // 'mental' (心中默答), 'text' (键盘输入)
       userAnswerText: '',
@@ -487,24 +625,33 @@ export default {
       manualRating: null, // 'remember' | 'fuzzy' | 'forgot' | 'mastered'
       scheduleFeedbackMsg: '',
 
-      // 本轮答题历史记录
-      sessionRecords: []
+      // 答题记录
+      sessionRecords: [],
+
+      // 规则与工作流抽屉
+      rulesDrawerVisible: false,
+      rulesForm: null
     }
   },
   created() {
     this.$bus.$on('showAiInterrogation', (payload) => {
       this.show(payload)
     })
+    this.rulesForm = getInterrogationConfig()
   },
   beforeDestroy() {
     this.$bus.$off('showAiInterrogation')
+    this.destroyQuizMindMap()
   },
   computed: {
+    dialogTitle() {
+      if (this.viewState === 'setup') return '🧠 AI 深度拷问系统 · 模式与知识靶向设置'
+      if (this.viewState === 'quiz') return '🧠 AI 深度拷问系统 · 窗口思维导图交互工作台'
+      return '🧠 AI 深度拷问系统 · 全景考核鉴定报告'
+    },
     isLastQuestion() {
-      if (this.selectedMode === 'understanding') {
-        return this.understandingIndex >= 3
-      }
-      return this.memoryIndex >= this.memoryTotalQuestions - 1
+      if (!this.questionNodeList || !this.questionNodeList.length) return true
+      return this.currentQuestionIndex >= this.questionNodeList.length - 1
     },
     difficultCharCard() {
       if (!this.currentQuiz || !this.currentQuiz.difficult_chars) return null
@@ -521,6 +668,11 @@ export default {
       this.visible = true
       this.viewState = 'setup'
       this.sessionRecords = []
+      this.destroyQuizMindMap()
+
+      // 载入最新规则配置
+      this.rulesForm = getInterrogationConfig()
+      this.answerType = this.rulesForm.workflow?.defaultAnswerType || 'mental'
 
       // 收集导图全量节点供下拉选择
       this.refreshMapNodes()
@@ -535,6 +687,20 @@ export default {
     },
     openConfig() {
       this.$bus.$emit('showAiConfig')
+    },
+    openRulesDrawer() {
+      this.rulesForm = getInterrogationConfig()
+      this.rulesDrawerVisible = true
+    },
+    saveCustomRules() {
+      if (!this.rulesForm) return
+      saveInterrogationConfig(this.rulesForm)
+      this.rulesDrawerVisible = false
+      this.$message.success('已保存自定义考官规则与工作流程，本次考查即刻生效！')
+    },
+    resetToDefaultRules() {
+      this.rulesForm = resetInterrogationConfig()
+      this.$message.info('已恢复为官方推荐默认规则与工作流')
     },
     getRootNode() {
       if (!this.mindMap) return null
@@ -583,7 +749,6 @@ export default {
           return
         }
       }
-      // 默认选择根节点或全图
       if (this.allMapNodes.length > 0) {
         this.focusNodeId = this.allMapNodes[0].id
         this.targetScope = 'node'
@@ -607,7 +772,7 @@ export default {
         this.selectedNodeSummary = null
       }
     },
-    startInterrogationSession() {
+    async startInterrogationSession() {
       const cfg = getJudgeAiConfig()
       if (!cfg.apiKey) {
         this.$message.info('首次使用请先配置大模型 API Key（支持 Gemini、DeepSeek、OpenAI 等）')
@@ -615,67 +780,154 @@ export default {
         return
       }
 
-      this.viewState = 'quiz'
-      this.understandingIndex = 0
-      this.memoryIndex = 0
-      this.sessionRecords = []
-      this.loadCurrentQuestion()
-    },
-    backToSetup() {
-      this.viewState = 'setup'
-      this.refreshMapNodes()
-      this.updateSelectedNodeSummary()
-    },
-    async loadCurrentQuestion() {
       const rootNode = this.getRootNode()
       if (!rootNode || !rootNode.data) {
         this.$message.warning('当前导图内容为空，请先绘制内容')
-        this.backToSetup()
         return
       }
 
       this.loading = true
-      this.currentQuiz = null
-      this.userAnswerText = ''
-      this.isAnswerRevealed = false
-      this.currentJudgeResult = null
-      this.manualRating = null
-      this.scheduleFeedbackMsg = ''
-
-      const focusId = this.targetScope === 'node' ? this.focusNodeId : null
+      this.loadingText = 'AI 考官正在将您的思维导图转化为挖空设问导图...'
 
       try {
-        if (this.selectedMode === 'understanding') {
-          const dimKey = UNDERSTANDING_DIMS[this.understandingIndex] || 'what'
-          this.loadingText = `AI 考官正在生成【${this.getDimensionName(dimKey)}】深度复盘考题...`
-          const quiz = await generateUnderstandingQuiz(rootNode, {
-            focusNodeId: focusId,
-            dimension: dimKey
-          })
-          if (!quiz || !quiz.question) throw new Error('考题数据格式异常，请重试')
-          this.currentQuiz = quiz
-        } else {
-          this.loadingText = `AI 考官正在生成第 ${this.memoryIndex + 1} 题内容记忆考题...`
-          const quiz = await generateMemoryQuiz(rootNode, {
-            focusNodeId: focusId
-          })
-          if (!quiz || !quiz.question) throw new Error('考题数据格式异常，请重试')
-          this.currentQuiz = quiz
+        const focusId = this.targetScope === 'node' ? this.focusNodeId : null
+        const treeRes = await generateQuizMindMapTree(rootNode, {
+          focusNodeId: focusId,
+          mode: this.selectedMode
+        })
+
+        if (!treeRes || !treeRes.root) {
+          throw new Error('生成的考查导图格式异常，请重试')
         }
+
+        this.quizTreeData = treeRes
+        this.extractQuestionNodes(this.quizTreeData.root)
+
+        if (!this.questionNodeList.length) {
+          throw new Error('未在导图中发现考查问题节点，请重试')
+        }
+
+        this.viewState = 'quiz'
+        this.currentQuestionIndex = 0
+        this.sessionRecords = []
+
+        // 渲染内嵌思维导图画布
+        this.$nextTick(() => {
+          this.initQuizMindMap(this.quizTreeData.root)
+          this.loadQuestionAtIndex(0)
+        })
       } catch (err) {
-        this.$message.error(err.message || '生成考题失败，请检查网络或 API 配置')
+        this.$message.error(err.message || '构建拷问导图失败，请检查网络或 API 配置')
       } finally {
         this.loading = false
       }
     },
-    getDimensionName(key) {
-      const map = {
-        which: '有哪些',
-        what: '是什么',
-        why: '为什么',
-        for_what: '为了什么'
+    extractQuestionNodes(root) {
+      const list = []
+      let qIndex = 0
+      const traverse = (node) => {
+        if (!node || !node.data) return
+        if (node.data.isQuestion || (node.data.text && node.data.text.includes('❓'))) {
+          node.data.quizIndex = qIndex++
+          list.push(node)
+        }
+        for (const child of node.children || []) {
+          traverse(child)
+        }
       }
-      return map[key] || '深度理解'
+      traverse(root)
+      this.questionNodeList = list
+    },
+    initQuizMindMap(treeRoot) {
+      this.destroyQuizMindMap()
+      const el = this.$refs.quizMindMapRef
+      if (!el) return
+
+      try {
+        this.quizMindMapInstance = new MindMap({
+          el,
+          data: JSON.parse(JSON.stringify(treeRoot)),
+          readonly: true,
+          fit: true,
+          layout: 'logicalStructure',
+          theme: 'classicGreen',
+          enableAutoEnterTextEditWhenKeydown: false,
+          nodeTextEditZIndex: 10,
+          nodeNoteTooltipZIndex: 10
+        })
+
+        this.quizMindMapInstance.on('node_click', (node) => {
+          if (node && node.nodeData && node.nodeData.data) {
+            const idx = node.nodeData.data.quizIndex
+            if (typeof idx === 'number' && idx >= 0 && idx < this.questionNodeList.length) {
+              this.loadQuestionAtIndex(idx)
+            }
+          }
+        })
+      } catch (err) {
+        console.warn('初始化窗口导图失败:', err)
+      }
+    },
+    destroyQuizMindMap() {
+      if (this.quizMindMapInstance) {
+        try {
+          this.quizMindMapInstance.destroy()
+        } catch (e) {}
+        this.quizMindMapInstance = null
+      }
+    },
+    onDialogClose() {
+      this.destroyQuizMindMap()
+    },
+    backToSetup() {
+      this.destroyQuizMindMap()
+      this.viewState = 'setup'
+      this.refreshMapNodes()
+      this.updateSelectedNodeSummary()
+    },
+    loadQuestionAtIndex(index) {
+      if (index < 0 || index >= this.questionNodeList.length) return
+      this.currentQuestionIndex = index
+      const node = this.questionNodeList[index]
+      const data = node.data || {}
+
+      this.currentQuiz = {
+        target_node_id: data.uid || data.id || `quiz_node_${index}`,
+        target_node_text: data.target_node_text || data.text || '考查概念',
+        dimension_name: data.dimension_name || '',
+        question: data.question_title || data.question || data.text,
+        understanding_hint: data.understanding_hint || '',
+        standard_answer: data.standard_answer || '',
+        has_difficult_chars: !!data.has_difficult_chars,
+        difficult_chars: Array.isArray(data.difficult_chars) ? data.difficult_chars : [],
+        evaluation_criteria: data.evaluation_criteria || ''
+      }
+
+      this.userAnswerText = ''
+      this.isAnswerRevealed = !!data.isCompleted
+      this.currentJudgeResult = data.lastJudgeResult || null
+      this.manualRating = data.manualRating || null
+      this.scheduleFeedbackMsg = ''
+    },
+    revealMentalAnswer() {
+      this.isAnswerRevealed = true
+      this.flipNodeOnMindMap(this.currentQuestionIndex, true)
+    },
+    flipNodeOnMindMap(index, isPassed = true) {
+      const node = this.questionNodeList[index]
+      if (!node || !node.data) return
+
+      node.data.isCompleted = true
+      const ans = node.data.standard_answer || this.currentQuiz.standard_answer || '已掌握'
+      // 动态翻牌变绿显示真实答案
+      node.data.text = `✅ ${ans}`
+
+      if (this.quizMindMapInstance) {
+        try {
+          this.quizMindMapInstance.setData(JSON.parse(JSON.stringify(this.quizTreeData.root)))
+          this.quizMindMapInstance.render()
+        } catch (e) {}
+      }
     },
     async submitTextAnswer() {
       if (!this.userAnswerText.trim() || !this.currentQuiz) return
@@ -683,6 +935,7 @@ export default {
       this.judging = true
       try {
         const cfg = getJudgeAiConfig()
+        const customRules = getInterrogationConfig()
         const endpoint = `${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
         const judgePrompt = `【考官审判任务】
@@ -690,6 +943,7 @@ export default {
 考查问题：${this.currentQuiz.question}
 标准要点：${this.currentQuiz.standard_answer || this.currentQuiz.evaluation_criteria || '逻辑自洽'}
 学生作答：${this.userAnswerText.trim()}
+用户自定义要求：${customRules.customExtraInstructions || '严格按照学科标准打分'}
 
 请以高考阅卷组长口吻对学生作答进行审评打分（强制输出合法的 JSON 对象）：
 {
@@ -716,6 +970,15 @@ export default {
         const content = data.choices?.[0]?.message?.content || '{}'
         const parsed = JSON.parse(content)
         this.currentJudgeResult = parsed
+
+        // 保存到当前节点
+        const node = this.questionNodeList[this.currentQuestionIndex]
+        if (node && node.data) {
+          node.data.lastJudgeResult = parsed
+        }
+
+        // 翻牌导图节点
+        this.flipNodeOnMindMap(this.currentQuestionIndex, parsed.grade >= 2)
       } catch (e) {
         this.$message.error(e.message || '审判失败')
       } finally {
@@ -724,6 +987,11 @@ export default {
     },
     applyManualSchedule(rating) {
       this.manualRating = rating
+      const node = this.questionNodeList[this.currentQuestionIndex]
+      if (node && node.data) {
+        node.data.manualRating = rating
+      }
+
       const nodeId = this.currentQuiz?.target_node_id || this.focusNodeId
       if (nodeId) {
         try {
@@ -741,8 +1009,13 @@ export default {
         }
       }
     },
+    prevQuestion() {
+      if (this.currentQuestionIndex > 0) {
+        this.loadQuestionAtIndex(this.currentQuestionIndex - 1)
+      }
+    },
     nextQuestion() {
-      // 沉淀记录
+      // 记录到 sessionRecords
       this.sessionRecords.push({
         quiz: this.currentQuiz,
         answerType: this.answerType,
@@ -756,12 +1029,7 @@ export default {
         return
       }
 
-      if (this.selectedMode === 'understanding') {
-        this.understandingIndex += 1
-      } else {
-        this.memoryIndex += 1
-      }
-      this.loadCurrentQuestion()
+      this.loadQuestionAtIndex(this.currentQuestionIndex + 1)
     },
     getGradeTagType(grade) {
       if (grade === 3) return 'success'
@@ -794,15 +1062,41 @@ export default {
 }
 
 .dialogBody {
-  min-height: 480px;
-  padding: 8px 4px;
+  min-height: 520px;
+  padding: 4px;
+}
+
+.globalTopHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 12px;
+
+  .leftMeta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .targetBadge {
+      font-size: 13px;
+      color: #334155;
+    }
+  }
+
+  .rightActions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 }
 
 /* 前置设置阶段 */
 .setupContainer {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 
   .setupSection {
     background: #f8fafc;
@@ -990,273 +1284,346 @@ export default {
     }
   }
 
+  .rulesQuickHint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fdf4ff;
+    border: 1px solid #f5d0fe;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #86198f;
+
+    .hintIcon {
+      font-size: 15px;
+    }
+
+    .hintText {
+      flex: 1;
+    }
+  }
+
   .setupFooter {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-top: 8px;
+    padding-top: 6px;
   }
 }
 
-/* 拷问进行中 */
-.quizContainer {
+/* 阶段 1：工作区（思维导图画布 + 答题控制台联动） */
+.quizWorkspace {
   display: flex;
   flex-direction: column;
   gap: 14px;
 
-  .quizTopBar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #f1f5f9;
-
-    .modeTagBox {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-
-      .targetNodeTag {
-        font-size: 13px;
-        color: #475569;
-      }
-    }
-  }
-
-  .dimensionStepsBar {
-    background: #f8fafc;
-    border-radius: 8px;
-    padding: 10px 12px;
-  }
-
-  .questionCard {
+  /* 上半区：思维导图交互区 */
+  .mindMapCanvasSection {
     background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-left: 4px solid #3b82f6;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    padding: 14px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-
-    .qHeader {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
-
-      .qTargetNode {
-        font-size: 12px;
-        color: #64748b;
-      }
-    }
-
-    .qText {
-      font-size: 15px;
-      font-weight: 600;
-      color: #0f172a;
-      line-height: 1.6;
-      margin-bottom: 8px;
-    }
-
-    .qHint {
-      background: #fefce8;
-      border: 1px solid #fef08a;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 12px;
-
-      .hintIcon {
-        color: #ca8a04;
-        font-weight: bold;
-      }
-
-      .hintContent {
-        color: #713f12;
-      }
-    }
-  }
-
-  .answerMethodBar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    .barLabel {
-      font-size: 13px;
-      font-weight: bold;
-      color: #334155;
-    }
-  }
-
-  .mentalAnswerBox {
-    background: #f8fafc;
-    border: 1px dashed #cbd5e1;
-    border-radius: 8px;
-    padding: 16px;
-
-    .mentalPrompt {
-      text-align: center;
-      color: #64748b;
-      font-size: 13px;
-
-      p {
-        margin-bottom: 12px;
-      }
-    }
-
-    .revealedContent {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-
-      .standardAnswerCard {
-        background: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-radius: 6px;
-        padding: 10px 12px;
-
-        .cardTitle {
-          font-weight: bold;
-          font-size: 13px;
-          color: #166534;
-          margin-bottom: 4px;
-        }
-
-        .cardBody {
-          font-size: 14px;
-          color: #14532d;
-          line-height: 1.5;
-        }
-      }
-
-      .criteriaCard {
-        background: #fefce8;
-        border: 1px solid #fef08a;
-        border-radius: 6px;
-        padding: 8px 12px;
-
-        .cardTitle {
-          font-weight: bold;
-          font-size: 12px;
-          color: #854d0e;
-          margin-bottom: 4px;
-        }
-
-        .cardBody {
-          font-size: 13px;
-          color: #713f12;
-          line-height: 1.4;
-        }
-      }
-    }
-  }
-
-  .textAnswerBox {
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 10px;
 
-    .submitRow {
+    .canvasHeaderBar {
       display: flex;
-      justify-content: flex-end;
-    }
-
-    .judgeFeedbackBox {
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
       background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
 
-      .judgeHeader {
-        margin-bottom: 6px;
+      .canvasTitle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #0f172a;
+
+        .subInfo {
+          font-size: 11px;
+          color: #64748b;
+          margin-left: 8px;
+        }
       }
 
-      .critiqueText {
-        font-size: 13px;
-        color: #1e293b;
+      .canvasLegend {
+        display: flex;
+        gap: 12px;
+        font-size: 11px;
+        color: #475569;
+
+        .legendItem {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+
+          .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+
+            &.question { background: #eab308; }
+            &.passed { background: #16a34a; }
+            &.active { background: #2563eb; }
+          }
+        }
+      }
+    }
+
+    .canvasContainer {
+      height: 310px;
+      width: 100%;
+      position: relative;
+      background: #fafafa;
+    }
+  }
+
+  /* 下半区：靶向答题控制台 */
+  .quizConsoleSection {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .questionCard {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #3b82f6;
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+
+      .qHeader {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+
+        .qTargetNode {
+          font-size: 12px;
+          color: #475569;
+          flex: 1;
+        }
+
+        .qProgressBadge {
+          font-size: 12px;
+          color: #64748b;
+          font-weight: 500;
+        }
+      }
+
+      .qText {
+        font-size: 15px;
+        font-weight: 600;
+        color: #0f172a;
         line-height: 1.5;
         margin-bottom: 6px;
       }
 
-      .standardRef {
+      .qHint {
+        background: #fefce8;
+        border: 1px solid #fef08a;
+        border-radius: 6px;
+        padding: 6px 10px;
         font-size: 12px;
-        color: #475569;
-        background: #ffffff;
-        padding: 6px;
-        border-radius: 4px;
-      }
-    }
-  }
 
-  /* 难写字手写专练 */
-  .difficultCharsSection {
-    background: #fff1f2;
-    border: 1px solid #fecdd3;
-    border-radius: 8px;
-    padding: 12px;
+        .hintIcon {
+          color: #ca8a04;
+          font-weight: bold;
+        }
 
-    .secHeader {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      color: #9f1239;
-      margin-bottom: 4px;
-
-      .charTag {
-        font-size: 14px;
-        font-weight: bold;
+        .hintContent {
+          color: #713f12;
+        }
       }
     }
 
-    .secDesc {
-      font-size: 12px;
-      color: #be123c;
-      margin-bottom: 8px;
-    }
-
-    .handwritingWrapper {
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      overflow: hidden;
-      background: #ffffff;
-    }
-  }
-
-  /* 手动选择复习安排控制台 */
-  .manualScheduleSection {
-    background: #faf5ff;
-    border: 1px solid #f3e8ff;
-    border-radius: 8px;
-    padding: 12px;
-
-    .manualHeader {
+    .answerMethodBar {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      font-weight: bold;
-      color: #6b21a8;
-      margin-bottom: 10px;
-    }
-
-    .ratingButtonsRow {
-      display: flex;
       gap: 8px;
-      flex-wrap: wrap;
+
+      .barLabel {
+        font-size: 13px;
+        font-weight: bold;
+        color: #334155;
+      }
     }
 
-    .feedbackStatus {
-      font-size: 12px;
-      color: #15803d;
-      margin-top: 8px;
-      font-weight: 500;
-    }
-  }
+    .mentalAnswerBox {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 14px;
 
-  .quizFooterRow {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: 6px;
+      .mentalPrompt {
+        text-align: center;
+        color: #64748b;
+        font-size: 13px;
+
+        p {
+          margin-bottom: 10px;
+        }
+      }
+
+      .revealedContent {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+        .standardAnswerCard {
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          border-radius: 6px;
+          padding: 10px 12px;
+
+          .cardTitle {
+            font-weight: bold;
+            font-size: 13px;
+            color: #166534;
+            margin-bottom: 4px;
+          }
+
+          .cardBody {
+            font-size: 14px;
+            color: #14532d;
+            line-height: 1.5;
+          }
+        }
+
+        .criteriaCard {
+          background: #fefce8;
+          border: 1px solid #fef08a;
+          border-radius: 6px;
+          padding: 8px 12px;
+
+          .cardTitle {
+            font-weight: bold;
+            font-size: 12px;
+            color: #854d0e;
+            margin-bottom: 4px;
+          }
+
+          .cardBody {
+            font-size: 13px;
+            color: #713f12;
+            line-height: 1.4;
+          }
+        }
+      }
+    }
+
+    .textAnswerBox {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+
+      .submitRow {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .judgeFeedbackBox {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12px;
+
+        .judgeHeader {
+          margin-bottom: 6px;
+        }
+
+        .critiqueText {
+          font-size: 13px;
+          color: #1e293b;
+          line-height: 1.5;
+          margin-bottom: 6px;
+        }
+
+        .standardRef {
+          font-size: 12px;
+          color: #475569;
+          background: #ffffff;
+          padding: 6px;
+          border-radius: 4px;
+        }
+      }
+    }
+
+    /* 难写字手写专练 */
+    .difficultCharsSection {
+      background: #fff1f2;
+      border: 1px solid #fecdd3;
+      border-radius: 8px;
+      padding: 12px;
+
+      .secHeader {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #9f1239;
+        margin-bottom: 4px;
+
+        .charTag {
+          font-size: 14px;
+          font-weight: bold;
+        }
+      }
+
+      .secDesc {
+        font-size: 12px;
+        color: #be123c;
+        margin-bottom: 8px;
+      }
+
+      .handwritingWrapper {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ffffff;
+      }
+    }
+
+    /* 手动选择复习安排控制台 */
+    .manualScheduleSection {
+      background: #faf5ff;
+      border: 1px solid #f3e8ff;
+      border-radius: 8px;
+      padding: 12px;
+
+      .manualHeader {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: bold;
+        color: #6b21a8;
+        margin-bottom: 8px;
+      }
+
+      .ratingButtonsRow {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .feedbackStatus {
+        font-size: 12px;
+        color: #15803d;
+        margin-top: 8px;
+        font-weight: 500;
+      }
+    }
+
+    .quizFooterRow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 4px;
+    }
   }
 }
 
@@ -1352,6 +1719,29 @@ export default {
     display: flex;
     justify-content: space-between;
     padding-top: 8px;
+  }
+}
+
+/* 规则与工作流抽屉 */
+.drawerBody {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  .workflowSwitchGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .drawerFooter {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+    margin-top: 10px;
   }
 }
 </style>

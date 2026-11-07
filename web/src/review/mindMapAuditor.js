@@ -1,3 +1,4 @@
+import { getInterrogationConfig } from './interrogationConfig'
 // ReviewMind 思维导图学术审校与认知纠错引擎
 // 负责与大模型（Gemini 1.5/2.0 Pro、DeepSeek-R1/V3、GPT-4o 等）交互
 // 铁律：绝对禁止 AI 自动替学生代写补全子节点，仅提供 4 维严苛体检诊断与启发式自查问题
@@ -391,4 +392,169 @@ export async function generateUnderstandingQuiz(rootNode, options = {}) {
   const resJson = await response.json()
   const rawContent = resJson.choices?.[0]?.message?.content || ''
   return parseModelJsonResponse(rawContent)
+}
+
+
+/**
+ * 基于思维导图节点及子节点，自动生成窗口内交互式【挖空/设问思维导图】数据结构 (Quiz Mind Map)
+ * @param {Object} rootNodeData
+ * @param {Object} options { focusNodeId, mode: 'memory' | 'understanding', customApiKey, customBaseUrl, customModel }
+ */
+export async function generateQuizMindMapTree(rootNodeData, options = {}) {
+  const outline = extractKnowledgeOutline(rootNodeData, {
+    focusNodeId: options.focusNodeId,
+    maxDepth: 6,
+    includeIds: true
+  })
+
+  if (!outline) {
+    throw new Error('当前思维导图大纲为空，无法构建考查导图。')
+  }
+
+  const customCfg = getInterrogationConfig()
+  const cfg = getJudgeAiConfig()
+  const apiKey = options.customApiKey || cfg.apiKey
+  const baseUrl = options.customBaseUrl || cfg.baseUrl
+  const model = options.customModel || cfg.modelName
+
+  if (!apiKey) {
+    throw new Error('未配置 AI API Key，请先配置。')
+  }
+
+  const mode = options.mode || 'understanding'
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+
+  let systemPrompt = ''
+  let userPrompt = ''
+
+  if (mode === 'memory') {
+    systemPrompt = `# Role: 挖空/设问版思维导图构建考官（以理解促记忆）
+你负责将学生的思维导图节点及其子节点，转换为一棵【去答案变问题】的“挖空设问思维导图”。
+
+## 转换铁律与规范
+1. 保留原本知识的主干层级关系，根节点添加标记 " [考查进行中]"。
+2. 将具体的记忆内容、诗句、素材或知识点叶子节点转换为设问节点（节点文本以 "❓ " 开头，例如 "❓ [描写秋水长天的名句？]"）。
+3. 每个设问节点的 data 中必须完整包含：
+   - "isQuestion": true
+   - "question_title": "完整的启发式考查题干（先引导语境意境理解，再要求默写/回忆）"
+   - "understanding_hint": "理解支架与深层机理提示"
+   - "standard_answer": "被挖掉的原标准答案内容"
+   - "has_difficult_chars": true/false (仅当含有古诗文易错/生僻字时为 true)
+   - "difficult_chars": ["字1", "字2"]
+   - "evaluation_criteria": "采分要点"
+4. 用户自定义规则（必须严格遵守）：
+${customCfg.memoryCustomRules || '注重理解促记忆，去答案化提问，生僻字精准提取'}
+${customCfg.customExtraInstructions ? `附加特定指令：${customCfg.customExtraInstructions}` : ''}
+
+## 强制 JSON 输出结构（标准 simple-mind-map 节点树格式）：
+{
+  "root": {
+    "data": {
+      "text": "核心主题 [考查中]"
+    },
+    "children": [
+      {
+        "data": {
+          "text": "分支一"
+        },
+        "children": [
+          {
+            "data": {
+              "text": "❓ [设问概括]",
+              "isQuestion": true,
+              "question_title": "考查题干",
+              "understanding_hint": "思考支架",
+              "standard_answer": "真实标准答案",
+              "has_difficult_chars": true,
+              "difficult_chars": ["生僻字"],
+              "evaluation_criteria": "采分要点"
+            },
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}`
+
+    userPrompt = `请将以下思维导图大纲转换为【内容记忆模式】的挖空设问思维导图树（强制输出合法的 JSON 对象）：\n\n\`\`\`markdown\n${outline}\n\`\`\``
+  } else {
+    const dims = (customCfg.workflow && customCfg.workflow.understandingDimensions) || ['which', 'what', 'why', 'for_what']
+    systemPrompt = `# Role: 四维深度复盘思维导图构建考官
+你负责根据学生的思维导图核心概念及其子节点，繁衍构建一棵围绕【有哪些、是什么、为什么、为了什么】的四维设问思维导图。
+
+## 转换铁律与规范
+1. 以用户考查的核心概念为根节点，标记 " [四维深度复盘]"。
+2. 向下根据子节点知识内容，繁衍出四维提问分支（激活维度：${dims.join(', ')}）：
+   - 【有哪些】(which)：要素组成、分支形态、适用范围与边界 ❓
+   - 【是什么】(what)：本质严谨定义、学科语言表述、概念边界 ❓
+   - 【为什么】(why)：深层机理、因果推导演绎、为什么成立 ❓
+   - 【为了什么】(for_what)：学科工具价值、解决什么本质问题、现实应用 ❓
+3. 每个设问分支必须为合法的节点对象，且 data 中包含：
+   - "isQuestion": true
+   - "dimension": "which",
+   - "dimension_name": "维度中文名",
+   - "question_title": "具体考查大题题干",
+   - "understanding_hint": "思考推导支架",
+   - "standard_answer": "标准推导答案与专业表述",
+   - "evaluation_criteria": "核心逻辑采分要点"
+4. 全键盘推理，完全免除手写练字。
+5. 用户自定义规则（必须严格遵守）：
+${customCfg.understandingCustomRules || '四维透视架构，直击因果推导'}
+${customCfg.customExtraInstructions ? `附加特定指令：${customCfg.customExtraInstructions}` : ''}
+
+## 强制 JSON 输出结构：
+{
+  "root": {
+    "data": { "text": "核心概念 [四维复盘]" },
+    "children": [
+      {
+        "data": {
+          "text": "❓ 【有哪些】适用条件与边界",
+          "isQuestion": true,
+          "dimension": "which",
+          "dimension_name": "有哪些",
+          "question_title": "具体题干",
+          "understanding_hint": "思考支架",
+          "standard_answer": "标准答案",
+          "evaluation_criteria": "采分要点"
+        },
+        "children": []
+      }
+    ]
+  }
+}`
+
+    userPrompt = `请根据以下思维导图内容，构建一棵【内容理解模式】的四维设问思维导图树（强制输出合法的 JSON 对象）：\n\n\`\`\`markdown\n${outline}\n\`\`\``
+  }
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`拷问思维导图构建失败 (HTTP ${response.status}): ${errorText.slice(0, 300)}`)
+  }
+
+  const resJson = await response.json()
+  const rawContent = resJson.choices?.[0]?.message?.content || ''
+  const parsed = parseModelJsonResponse(rawContent)
+  if (!parsed || (!parsed.root && !parsed.data)) {
+    throw new Error('模型返回的导图数据结构异常，请重试')
+  }
+  return parsed.root ? parsed : { root: parsed }
 }

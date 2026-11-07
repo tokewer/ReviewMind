@@ -36,7 +36,7 @@ def _resolve_port(default=8080):
     return default
 
 
-VERSION = '1.5.1'
+VERSION = '1.5.2'
 PORT = _resolve_port()
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, 'data')
