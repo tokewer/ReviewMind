@@ -154,7 +154,7 @@ export function parseModelJsonResponse(rawText) {
     if (match) {
       try {
         return JSON.parse(match[0])
-      } catch (err) {}
+      } catch (err) { return null; }
     }
     return null
   }

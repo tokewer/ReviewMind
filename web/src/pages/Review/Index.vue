@@ -1487,10 +1487,6 @@ export default {
       this.rate(rating)
     },
 
-    onHandwritingJudgeRate(rating) {
-      this.rate(rating)
-    },
-
     rate(rating) {
       if (this.isSubmittingRate) return
       if (!this.showAnswer) {
