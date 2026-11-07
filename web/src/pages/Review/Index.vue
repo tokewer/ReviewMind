@@ -4,7 +4,7 @@
       <div class="left">
         <div style="display: flex; align-items: center; gap: 8px;">
           <h2>复习中心</h2>
-          <el-tag size="mini" type="info">v1.5.6</el-tag>
+          <el-tag size="mini" type="info">v1.5.7</el-tag>
         </div>
         <span class="date">{{ today }}</span>
       </div>

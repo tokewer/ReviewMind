@@ -560,6 +560,7 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
 
       node.data.isQuestion = true
       node.data.quizIndex = qIndex
+      node.data.target_node_id = node.data.uid || node.data.id || `quiz_node_${qIndex}`
       node.data.status = 'pending'
       node.data.dimension = dimension
       node.data.dimension_name = dimension_name
@@ -622,6 +623,314 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
   return { root: targetRoot }
 }
 
+/**
+ * 基于思维导图由大模型生成高考考查题目导图树
+ * 1. 本地首先基于导图层级构建完整的挖空设问树骨架 (buildQuizMindMapTree)
+ * 2. 提取导图结构化 Markdown 大纲 (extractKnowledgeOutline)
+ * 3. 收集树中待考查的问题节点清单
+ * 4. 调用配置的 AI 模型（Gemini / DeepSeek / OpenAI 等），结合考官模式与高考不超纲铁律，基于思维导图深度生成情境化高考考题
+ * 5. 将 AI 生成的高考考题回填至导图树对应的设问节点中
+ * 6. 若离线、未配置 AI Key 或网络异常，安全降级为本地考纲模型，保障 0 崩溃
+ */
 export async function generateQuizMindMapTree(rootNodeData, options = {}) {
-  return buildQuizMindMapTree(rootNodeData, options)
+  const baseResult = buildQuizMindMapTree(rootNodeData, options)
+  const treeRoot = baseResult.root
+
+  const questionNodes = []
+  const collectNodes = (node) => {
+    if (!node || !node.data) return
+    if (node.data.isQuestion) {
+      questionNodes.push(node)
+    }
+    for (const child of node.children || []) {
+      collectNodes(child)
+    }
+  }
+  collectNodes(treeRoot)
+
+  if (questionNodes.length === 0) {
+    return baseResult
+  }
+
+  const cfg = getJudgeAiConfig()
+  const apiKey = options.customApiKey || cfg.apiKey
+  const baseUrl = options.customBaseUrl || cfg.baseUrl
+  const model = options.customModel || cfg.modelName
+
+  if (!apiKey) {
+    return {
+      ...baseResult,
+      aiGenerated: false,
+      aiNotice: '当前未配置 AI API Key，已启用本地考纲模型出题。在 API 配置中填入密钥可享受 AI 大模型深度定制命题。'
+    }
+  }
+
+  const outline = extractKnowledgeOutline(rootNodeData, {
+    focusNodeId: options.focusNodeId,
+    maxDepth: 6,
+    includeIds: true
+  })
+
+  const mode = options.mode || 'memory'
+  const interrogationCfg = getInterrogationConfig()
+  const customRules = mode === 'memory'
+    ? interrogationCfg.memoryCustomRules
+    : interrogationCfg.understandingCustomRules
+  const extraInstructions = interrogationCfg.customExtraInstructions || ''
+
+  const baseSystemPrompt = mode === 'memory'
+    ? MEMORY_INTERROGATION_SYSTEM_PROMPT
+    : UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT
+
+  const systemPrompt = `${baseSystemPrompt}
+
+---
+
+## 附加用户定制考官规则与高考铁律：
+${customRules}
+${extraInstructions ? `\n附加要求：${extraInstructions}` : ''}
+
+---
+
+## 批量出题输出规范（必须严格输出合法的纯 JSON 格式）
+你必须且仅能输出一个 JSON 对象，结构如下：
+{
+  "questions": [
+    {
+      "target_node_id": "对应考查节点的 ID 或标识",
+      "target_node_text": "考点名称（纯文本，绝不包含任何 HTML 标签）",
+      "dimension": "what" | "which" | "why" | "for_what",
+      "dimension_name": "是什么" | "有什么" | "为什么" | "为了什么",
+      "aspect_subdivision": "具体的细分考查方向（例如：核心要素盘点 / 定理公式定义 / 深层因果机制推导 / 高考大题迁移破题）",
+      "question": "AI针对该导图节点精心编写的高考考查题干（结合高考情境或因果机理，绝不剧透答案）",
+      "understanding_hint": "解题切入点与思考支架（无答案，启发解题思路）",
+      "standard_answer": "结合导图内容的高考标准答案与规范表述（纯文本）",
+      "has_difficult_chars": false,
+      "difficult_chars": [],
+      "evaluation_criteria": "高考阅卷标准与核心采分点"
+    }
+  ]
+}`
+
+  const targetNodesPayload = questionNodes.slice(0, 15).map((qNode, idx) => {
+    return {
+      index: idx + 1,
+      target_node_id: qNode.data.target_node_id || qNode.data.uid || qNode.data.id || `node_${idx}`,
+      target_node_text: stripHtml(qNode.data.target_node_text || qNode.data.text || ''),
+      path: stripHtml(qNode.data.aspect_domain || ''),
+      dimension: qNode.data.dimension || (mode === 'memory' ? 'what' : 'why'),
+      standard_answer_ref: stripHtml(qNode.data.standard_answer || '')
+    }
+  })
+
+  const userPrompt = `请深度研读以下学生的思维导图大纲，严格基于该思维导图的知识脉络与节点从属关系，为清单中的每个考查节点编写一套真实、严谨的高考考题（必须为高考服务，绝不考偏门无益内容）：
+
+### 思维导图知识大纲：
+\`\`\`markdown
+${outline}
+\`\`\`
+
+### 需出题的考查目标节点清单：
+${JSON.stringify(targetNodesPayload, null, 2)}
+`
+
+  try {
+    const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 40000)
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
+      }),
+      signal: controller.signal
+    })
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      const errText = await response.text()
+      console.warn('AI 出题接口响应异常:', errText)
+      return {
+        ...baseResult,
+        aiGenerated: false,
+        aiError: `AI 服务返回 HTTP ${response.status}`
+      }
+    }
+
+    const resJson = await response.json()
+    const rawContent = resJson.choices?.[0]?.message?.content || ''
+    const parsed = parseModelJsonResponse(rawContent)
+
+    const aiList = Array.isArray(parsed)
+      ? parsed
+      : (parsed?.questions && Array.isArray(parsed.questions) ? parsed.questions : null)
+
+    if (aiList && aiList.length > 0) {
+      for (let i = 0; i < questionNodes.length; i++) {
+        const qNode = questionNodes[i]
+        const qNodeId = qNode.data.target_node_id || qNode.data.uid || qNode.data.id
+        const qNodeText = stripHtml(qNode.data.target_node_text || '')
+
+        const aiMatch = aiList.find(item => item.target_node_id && (item.target_node_id === qNodeId || item.target_node_id === qNode.data.uid)) ||
+          aiList.find(item => item.target_node_text && stripHtml(item.target_node_text) === qNodeText) ||
+          aiList[i]
+
+        if (aiMatch) {
+          if (aiMatch.question) {
+            qNode.data.question_title = stripHtml(aiMatch.question)
+          }
+          if (aiMatch.understanding_hint) {
+            qNode.data.understanding_hint = stripHtml(aiMatch.understanding_hint)
+          }
+          if (aiMatch.standard_answer) {
+            qNode.data.standard_answer = stripHtml(aiMatch.standard_answer)
+          }
+          if (aiMatch.aspect_subdivision) {
+            qNode.data.aspect_subdivision = stripHtml(aiMatch.aspect_subdivision)
+          }
+          if (aiMatch.evaluation_criteria) {
+            qNode.data.evaluation_criteria = stripHtml(aiMatch.evaluation_criteria)
+          }
+          if (typeof aiMatch.has_difficult_chars === 'boolean') {
+            qNode.data.has_difficult_chars = aiMatch.has_difficult_chars
+          }
+          if (Array.isArray(aiMatch.difficult_chars)) {
+            qNode.data.difficult_chars = aiMatch.difficult_chars.filter(c => typeof c === 'string' && c.length === 1)
+          }
+          qNode.data.ai_generated = true
+        }
+      }
+      return {
+        ...baseResult,
+        aiGenerated: true
+      }
+    }
+  } catch (e) {
+    console.warn('AI 生成导图题目发生异常，已回退为本地考纲模型:', e)
+    return {
+      ...baseResult,
+      aiGenerated: false,
+      aiError: e.message
+    }
+  }
+
+  return {
+    ...baseResult,
+    aiGenerated: false
+  }
+}
+
+/**
+ * 针对当前单个导图节点，由 AI 换个角度重新编写高考题目
+ */
+export async function regenerateSingleQuestionWithAi(questionData, mapOutline = '', options = {}) {
+  const cfg = getJudgeAiConfig()
+  const apiKey = options.customApiKey || cfg.apiKey
+  const baseUrl = options.customBaseUrl || cfg.baseUrl
+  const model = options.customModel || cfg.modelName
+
+  if (!apiKey) {
+    throw new Error('未配置 AI API Key，请先在 API 配置中填入密钥')
+  }
+
+  const mode = options.mode || 'memory'
+  const interrogationCfg = getInterrogationConfig()
+  const customRules = mode === 'memory'
+    ? interrogationCfg.memoryCustomRules
+    : interrogationCfg.understandingCustomRules
+  const extraInstructions = interrogationCfg.customExtraInstructions || ''
+
+  const basePrompt = mode === 'memory'
+    ? MEMORY_INTERROGATION_SYSTEM_PROMPT
+    : UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT
+
+  const systemPrompt = `${basePrompt}
+
+---
+
+## 附加用户定制考官规则与高考铁律：
+${customRules}
+${extraInstructions ? `\n附加要求：${extraInstructions}` : ''}
+
+## 单题重新命题输出规范（纯 JSON）：
+{
+  "target_node_id": "${questionData.target_node_id || ''}",
+  "target_node_text": "${stripHtml(questionData.target_node_text || '')}",
+  "dimension": "${questionData.dimension || 'what'}",
+  "dimension_name": "${questionData.dimension_name || '是什么'}",
+  "aspect_subdivision": "细分考查方向",
+  "question": "AI基于思维导图换个角度全新设计的高考考查题干（绝不剧透答案）",
+  "understanding_hint": "解题切入点与思考支架（无答案）",
+  "standard_answer": "结合导图的标准答案（纯文本）",
+  "has_difficult_chars": false,
+  "difficult_chars": [],
+  "evaluation_criteria": "高考采分要点"
+}`
+
+  const userPrompt = `请基于以下思维导图知识大纲，针对节点【${stripHtml(questionData.target_node_text)}】（所属知识定位：${stripHtml(questionData.aspect_domain || '核心网络')}），换个全新的高考考查角度重新编写一道题目：
+
+${mapOutline ? `### 思维导图知识大纲：\n\`\`\`markdown\n${mapOutline}\n\`\`\`\n` : ''}
+原参考内容/标准答案：${stripHtml(questionData.standard_answer || '')}
+`
+
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 35000)
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.6,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ]
+    }),
+    signal: controller.signal
+  })
+  clearTimeout(timeoutId)
+
+  if (!response.ok) {
+    const errText = await response.text()
+    throw new Error(`AI 服务返回 HTTP ${response.status}: ${errText.slice(0, 200)}`)
+  }
+
+  const resJson = await response.json()
+  const rawContent = resJson.choices?.[0]?.message?.content || ''
+  const parsed = parseModelJsonResponse(rawContent)
+  if (!parsed || !parsed.question) {
+    throw new Error('AI 未能返回有效的题目结构，请重试')
+  }
+
+  return {
+    ...questionData,
+    target_node_text: stripHtml(parsed.target_node_text || questionData.target_node_text),
+    dimension: parsed.dimension || questionData.dimension,
+    dimension_name: parsed.dimension_name || questionData.dimension_name,
+    aspect_subdivision: stripHtml(parsed.aspect_subdivision || questionData.aspect_subdivision),
+    question: stripHtml(parsed.question),
+    understanding_hint: stripHtml(parsed.understanding_hint || ''),
+    standard_answer: stripHtml(parsed.standard_answer || questionData.standard_answer),
+    evaluation_criteria: stripHtml(parsed.evaluation_criteria || questionData.evaluation_criteria),
+    has_difficult_chars: !!parsed.has_difficult_chars,
+    difficult_chars: Array.isArray(parsed.difficult_chars) ? parsed.difficult_chars : [],
+    ai_generated: true
+  }
 }

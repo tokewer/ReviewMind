@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import {
   DEFAULT_INTERROGATION_CONFIG,
   getInterrogationConfig,
@@ -9,6 +9,7 @@ import {
   detectDifficultChars,
   buildQuizMindMapTree,
   generateQuizMindMapTree,
+  regenerateSingleQuestionWithAi,
   stripHtml
 } from '../web/src/review/mindMapAuditor.js'
 
@@ -188,7 +189,7 @@ describe('思维导图去答案变设问与考查细分测试 (buildQuizMindMapT
     expect(leafNode.data.fillColor).toBe('#fefce8')
   })
 
-  it('generateQuizMindMapTree 本地确定性生成，无需网络且 0 毫秒秒开', async () => {
+  it('generateQuizMindMapTree 本地确定性生成，无需网络且 0 毫秒秒开（未配 Key 时）', async () => {
     const mockMap = {
       data: { text: '高中化学有机物' },
       children: [
@@ -202,5 +203,148 @@ describe('思维导图去答案变设问与考查细分测试 (buildQuizMindMapT
     const tree = await generateQuizMindMapTree(mockMap, { mode: 'understanding' })
     expect(tree).toBeDefined()
     expect(tree.root).toBeDefined()
+    expect(tree.aiGenerated).toBe(false)
+  })
+})
+
+describe('AI 基于思维导图生成高考考题与单题重命题深度测试', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  it('generateQuizMindMapTree 通过 AI 基于思维导图大纲定制高质量考题并回填', async () => {
+    const mockMap = {
+      data: { uid: 'root_1', text: '高中物理·电磁感应' },
+      children: [
+        {
+          data: { uid: 'node_faraday', text: '法拉第电磁感应定律' },
+          children: [
+            {
+              data: { uid: 'leaf_formula', text: 'E = n * (ΔΦ/Δt) 感应电动势大小与磁通量变化率成正比' },
+              children: []
+            }
+          ]
+        }
+      ]
+    }
+
+    // 模拟大模型返回针对思维导图生成的真实高考考题
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                questions: [
+                  {
+                    target_node_id: 'leaf_formula',
+                    target_node_text: '法拉第电磁感应定律',
+                    dimension: 'why',
+                    dimension_name: '为什么',
+                    aspect_subdivision: '感应电动势本质成因与磁通量变化率推导',
+                    question: '【高考大题机理】在导体棒切割磁感线模型中，结合洛伦兹力推导为什么感应电动势的大小必然正比于磁通量的变化率 ΔΦ/Δt？',
+                    understanding_hint: '从自由电子在磁场中受洛伦兹力沿导体运动做功的微观视角切入演绎。',
+                    standard_answer: '微观电荷在磁场中做切割运动受到洛伦兹力做功，根据动生电动势定义 W=qE_感，推得感应电动势严格等于单位时间内磁通量的变化率。',
+                    has_difficult_chars: false,
+                    difficult_chars: [],
+                    evaluation_criteria: '必须指出洛伦兹力沿导体方向分力做功，并严密得出 E = ΔΦ/Δt 表达式。'
+                  }
+                ]
+              })
+            }
+          }
+        ]
+      })
+    })
+
+    const res = await generateQuizMindMapTree(mockMap, {
+      mode: 'understanding',
+      customApiKey: 'sk-mock-key-for-test',
+      customBaseUrl: 'https://api.mock.test/v1'
+    })
+
+    expect(res.aiGenerated).toBe(true)
+    const leaf = res.root.children[0].children[0]
+    expect(leaf.data.ai_generated).toBe(true)
+    expect(leaf.data.question_title).toContain('结合洛伦兹力推导为什么感应电动势的大小必然正比于磁通量的变化率')
+    expect(leaf.data.understanding_hint).toContain('从自由电子在磁场中受洛伦兹力')
+    expect(leaf.data.aspect_subdivision).toContain('感应电动势本质成因')
+    expect(leaf.data.standard_answer).toContain('微观电荷在磁场中做切割运动受到洛伦兹力做功')
+  })
+
+  it('regenerateSingleQuestionWithAi 支持针对当前节点由 AI 换个角度重新出题', async () => {
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                target_node_id: 'test_node_1',
+                target_node_text: '楞次定律',
+                dimension: 'for_what',
+                dimension_name: '为了什么',
+                aspect_subdivision: '能量守恒定律在电磁感应中的工具价值',
+                question: '【新视角设问】从能量守恒定律的宏观视角剖析：高考力电综合大题中引入楞次定律是为了解决什么本质问题？阻碍磁通量变化的背后是什么能量转换？',
+                understanding_hint: '外力克服安培力做功与感应电流产生的电能严格守恒。',
+                standard_answer: '楞次定律是能量守恒定律在电磁现象中的直接体现，外力克服感应电流安培力所做的功完全转化为电路中的电能或内能。',
+                evaluation_criteria: '指明能量守恒本质与安培力做功转化机制。'
+              })
+            }
+          }
+        ]
+      })
+    })
+
+    const updated = await regenerateSingleQuestionWithAi(
+      {
+        target_node_id: 'test_node_1',
+        target_node_text: '楞次定律',
+        aspect_domain: '高中物理 ➔ 电磁感应 ➔ 楞次定律',
+        standard_answer: '感应电流的磁场总要阻碍引起感应电流的磁通量的变化'
+      },
+      '- 高中物理\n  - 电磁感应\n    - 楞次定律',
+      {
+        mode: 'understanding',
+        customApiKey: 'sk-mock-test',
+        customBaseUrl: 'https://api.mock.test/v1'
+      }
+    )
+
+    expect(updated.ai_generated).toBe(true)
+    expect(updated.question).toContain('从能量守恒定律的宏观视角剖析')
+    expect(updated.dimension_name).toBe('为了什么')
+    expect(updated.understanding_hint).toContain('外力克服安培力做功')
+    expect(updated.question).not.toContain('<p>')
+  })
+
+  it('generateQuizMindMapTree 在网络失败时安全降级为本地考纲模型，绝不抛错阻断用户', async () => {
+    globalThis.fetch = async () => {
+      throw new Error('Network Connection Refused')
+    }
+
+    const mockMap = {
+      data: { uid: 'root_net', text: '网络异常测试导图' },
+      children: [
+        {
+          data: { uid: 'child_1', text: '考点A' },
+          children: []
+        }
+      ]
+    }
+
+    const res = await generateQuizMindMapTree(mockMap, {
+      mode: 'memory',
+      customApiKey: 'sk-test',
+      customBaseUrl: 'https://api.offline.test/v1'
+    })
+
+    expect(res).toBeDefined()
+    expect(res.root).toBeDefined()
+    expect(res.aiGenerated).toBe(false)
+    expect(res.aiError).toContain('Network Connection Refused')
   })
 })

@@ -306,36 +306,48 @@
                   {{ selectedMode === 'memory' ? '⚔️ 模式一：有什么·是什么 (高考直接主力军)' : '🛡️ 模式二：为什么·为了什么 (高考理解后勤部)' }}
                 </span>
                 <span class="aspectBadge dimBadge">
-                  📌 核心维度：【{{ currentQuiz.dimension_name }}】
+                  📌 核心维度：【{{ currentQuiz.dimension_name | cleanText }}】
                 </span>
                 <span class="aspectBadge subBadge">
-                  🎯 细分考查方向：{{ currentQuiz.aspect_subdivision }}
+                  🎯 细分考查方向：{{ currentQuiz.aspect_subdivision | cleanText }}
                 </span>
               </div>
               <div class="domainPathRow" v-if="currentQuiz.aspect_domain">
                 <span class="domainLabel">🗺️ 知识体系定位：</span>
-                <span class="domainPath">{{ currentQuiz.aspect_domain }}</span>
+                <span class="domainPath">{{ currentQuiz.aspect_domain | cleanText }}</span>
               </div>
             </div>
 
             <div class="qHeader">
               <div class="qTargetNode">
-                <strong>📌 考点名称：【{{ currentQuiz.target_node_text }}】</strong>
+                <strong>📌 考点名称：【{{ currentQuiz.target_node_text | cleanText }}】</strong>
+                <el-tag v-if="currentQuiz.ai_generated" size="mini" type="success" effect="plain" class="aiTag">✨ AI 基于导图定制</el-tag>
               </div>
-              <div class="qProgressBadge">
-                第 {{ currentQuestionIndex + 1 }} / {{ questionNodeList.length }} 题
+              <div class="qRightControls">
+                <el-button
+                  type="text"
+                  size="mini"
+                  icon="el-icon-refresh"
+                  :loading="isRegeneratingQuestion"
+                  @click="handleRegenerateCurrentQuestion"
+                >
+                  AI 换个角度重新出题
+                </el-button>
+                <div class="qProgressBadge">
+                  第 {{ currentQuestionIndex + 1 }} / {{ questionNodeList.length }} 题
+                </div>
               </div>
             </div>
 
             <!-- 具体考查题干（不透露答案） -->
             <div class="qText">
-              {{ currentQuiz.question }}
+              {{ currentQuiz.question | cleanText }}
             </div>
 
             <!-- 思考支架与切入方向提示（无答案，提供解题思路） -->
             <div v-if="currentQuiz.understanding_hint && !isAnswerRevealed" class="qHint">
               <span class="hintIcon">💡 思考切入点：</span>
-              <span class="hintContent">{{ currentQuiz.understanding_hint }}</span>
+              <span class="hintContent">{{ currentQuiz.understanding_hint | cleanText }}</span>
               <span class="secureMaskTag">🔒（标准答案已安全遮蔽）</span>
             </div>
           </div>
@@ -365,12 +377,12 @@
             <div v-else class="revealedContent">
               <div class="standardAnswerCard">
                 <div class="cardTitle">✅ 官方标准答案 / 完整表述：</div>
-                <div class="cardBody">{{ currentQuiz.standard_answer || currentQuiz.evaluation_criteria }}</div>
+                <div class="cardBody">{{ (currentQuiz.standard_answer || currentQuiz.evaluation_criteria) | cleanText }}</div>
               </div>
 
               <div v-if="currentQuiz.evaluation_criteria && currentQuiz.evaluation_criteria !== currentQuiz.standard_answer" class="criteriaCard">
                 <div class="cardTitle">📌 答题采分关键点：</div>
-                <div class="cardBody">{{ currentQuiz.evaluation_criteria }}</div>
+                <div class="cardBody">{{ currentQuiz.evaluation_criteria | cleanText }}</div>
               </div>
             </div>
           </div>
@@ -642,7 +654,9 @@ Themes.init(MindMap)
 import {
   generateMemoryQuiz,
   generateUnderstandingQuiz,
-  generateQuizMindMapTree
+  generateQuizMindMapTree,
+  regenerateSingleQuestionWithAi,
+  stripHtml
 } from '@/review/mindMapAuditor'
 import { getJudgeAiConfig } from '@/review/handwritingJudge'
 import { rateReview } from '@/review/index'
@@ -652,10 +666,15 @@ import {
   resetInterrogationConfig
 } from '@/review/interrogationConfig'
 import ReviewHandwritingBoard from './ReviewHandwritingBoard.vue'
-import { stripHtml } from '@/review/mindMapAuditor'
+import { extractKnowledgeOutline } from '@/utils/mindMapKnowledgeExtractor'
 
 export default {
   name: 'AiInterrogationDialog',
+  filters: {
+    cleanText(val) {
+      return stripHtml(val || '')
+    }
+  },
   components: {
     ReviewHandwritingBoard
   },
@@ -672,6 +691,7 @@ export default {
       loading: false,
       loadingText: 'AI 考官正在生成题目...',
       judging: false,
+      isRegeneratingQuestion: false,
 
       // 阶段状态: 'setup' (前置准备与选择), 'quiz' (导图拷问工作台), 'report' (考核报告)
       viewState: 'setup',
@@ -898,7 +918,7 @@ export default {
       }
 
       this.loading = true
-      this.loadingText = 'AI 考官正在将您的思维导图转化为挖空设问导图...'
+      this.loadingText = 'AI 考官正在深度研读思维导图知识网络，定制高考考题...'
 
       try {
         const focusId = this.targetScope === 'node' ? this.focusNodeId : null
@@ -916,6 +936,14 @@ export default {
 
         if (!this.questionNodeList.length) {
           throw new Error('未在导图中发现考查问题节点，请重试')
+        }
+
+        if (treeRes.aiGenerated) {
+          this.$message.success('AI 考官已基于思维导图成功定制高考考题！')
+        } else if (treeRes.aiNotice) {
+          this.$message.info(treeRes.aiNotice)
+        } else if (treeRes.aiError) {
+          this.$message.warning('AI 联网定制考题超时或受阻，已无缝切换为本地考纲模型出题。')
         }
 
         this.viewState = 'quiz'
@@ -1081,7 +1109,8 @@ export default {
         standard_answer: stripHtml(data.standard_answer || ''),
         has_difficult_chars: !!data.has_difficult_chars,
         difficult_chars: Array.isArray(data.difficult_chars) ? data.difficult_chars : [],
-        evaluation_criteria: stripHtml(data.evaluation_criteria || '')
+        evaluation_criteria: stripHtml(data.evaluation_criteria || ''),
+        ai_generated: !!data.ai_generated
       }
 
       this.userAnswerText = ''
@@ -1838,19 +1867,51 @@ export default {
       .qHeader {
         display: flex;
         align-items: center;
+        justify-content: space-between;
         gap: 8px;
         margin-bottom: 6px;
 
         .qTargetNode {
-          font-size: 12px;
-          color: #475569;
+          font-size: 13px;
+          color: #1f2937;
           flex: 1;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+
+          .aiTag {
+            font-size: 11px;
+            height: 20px;
+            line-height: 18px;
+            padding: 0 6px;
+            border-radius: 4px;
+            font-weight: 500;
+          }
         }
 
-        .qProgressBadge {
-          font-size: 12px;
-          color: #64748b;
-          font-weight: 500;
+        .qRightControls {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+
+          .el-button {
+            padding: 0;
+            font-size: 12px;
+            color: #3b82f6;
+            &:hover {
+              color: #1d4ed8;
+            }
+          }
+
+          .qProgressBadge {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 12px;
+          }
         }
       }
 
