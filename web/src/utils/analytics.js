@@ -5,10 +5,10 @@
 const DEBUG_STORAGE_KEY = 'reviewmind_debug_mode'
 const BAIDU_TONGJI_ID_KEY = 'reviewmind_baidu_tongji_id'
 
-// 全站默认百度统计站点 Token（构建打包注入或在此预置）
+// 全站默认百度统计站点 Token（用户专属 ID）
 export const DEFAULT_BAIDU_TONGJI_ID = (typeof process !== 'undefined' && process.env && process.env.VUE_APP_BAIDU_TONGJI_ID)
   ? process.env.VUE_APP_BAIDU_TONGJI_ID
-  : ''
+  : '1dc2a98c8539709ece738c4ff35433dd'
 
 /**
  * 判断当前是否处于本地开发、局域网测试或站长调试模式
