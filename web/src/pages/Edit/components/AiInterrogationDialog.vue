@@ -321,7 +321,8 @@
             <div class="qHeader">
               <div class="qTargetNode">
                 <strong>📌 考点名称：【{{ currentQuiz.target_node_text | cleanText }}】</strong>
-                <el-tag v-if="currentQuiz.ai_generated" size="mini" type="success" effect="plain" class="aiTag">✨ AI 基于导图定制</el-tag>
+                <el-tag v-if="currentQuiz.ai_generated" size="mini" type="success" effect="plain" class="aiTag">✨ AI 原位设问</el-tag>
+                <el-tag v-else size="mini" type="info" effect="plain" class="aiTag">🔒 导图原位遮盖</el-tag>
               </div>
               <div class="qRightControls">
                 <el-button
@@ -331,7 +332,7 @@
                   :loading="isRegeneratingQuestion"
                   @click="handleRegenerateCurrentQuestion"
                 >
-                  AI 换个角度重新出题
+                  AI 换个更清晰的问法
                 </el-button>
                 <div class="qProgressBadge">
                   第 {{ currentQuestionIndex + 1 }} / {{ questionNodeList.length }} 题
@@ -346,9 +347,9 @@
 
             <!-- 思考支架与切入方向提示（无答案，提供解题思路） -->
             <div v-if="currentQuiz.understanding_hint && !isAnswerRevealed" class="qHint">
-              <span class="hintIcon">💡 思考切入点：</span>
+              <span class="hintIcon">💡 导图提示：</span>
               <span class="hintContent">{{ currentQuiz.understanding_hint | cleanText }}</span>
-              <span class="secureMaskTag">🔒（标准答案已安全遮蔽）</span>
+              <span class="secureMaskTag">🔒（原节点内容已遮盖）</span>
             </div>
           </div>
           <!-- 作答形式切换栏 -->
@@ -656,6 +657,7 @@ import {
   generateUnderstandingQuiz,
   generateQuizMindMapTree,
   regenerateSingleQuestionWithAi,
+  parseModelJsonResponse,
   stripHtml
 } from '@/review/mindMapAuditor'
 import { getJudgeAiConfig } from '@/review/handwritingJudge'
@@ -819,6 +821,55 @@ export default {
     openConfig() {
       this.$bus.$emit('showAiConfig')
     },
+    async handleRegenerateCurrentQuestion() {
+      if (!this.currentQuiz) return
+      const cfg = getJudgeAiConfig()
+      if (!cfg.apiKey) {
+        this.$message.info('请先配置 AI API Key，才能由大模型优化提问方式')
+        this.openConfig()
+        return
+      }
+
+      this.isRegeneratingQuestion = true
+      try {
+        const rootNode = this.getRootNode()
+        const outline = extractKnowledgeOutline(rootNode, {
+          focusNodeId: this.targetScope === 'node' ? this.focusNodeId : null,
+          maxDepth: 6,
+          includeIds: true
+        })
+
+        const updated = await regenerateSingleQuestionWithAi(this.currentQuiz, outline, {
+          mode: this.selectedMode
+        })
+
+        this.currentQuiz = {
+          ...this.currentQuiz,
+          ...updated,
+          ai_generated: true
+        }
+
+        const node = this.questionNodeList[this.currentQuestionIndex]
+        if (node && node.data) {
+          node.data.question_title = updated.question
+          node.data.understanding_hint = updated.understanding_hint
+          if (!node.data.standard_answer) {
+            node.data.standard_answer = updated.standard_answer
+          }
+          node.data.aspect_subdivision = updated.aspect_subdivision
+          node.data.evaluation_criteria = updated.evaluation_criteria
+          node.data.has_difficult_chars = updated.has_difficult_chars
+          node.data.difficult_chars = updated.difficult_chars
+          node.data.ai_generated = true
+        }
+
+        this.$message.success('AI 已换用更清晰直白的问法！')
+      } catch (err) {
+        this.$message.error(err.message || 'AI 重新生成问法失败，请检查网络或配置')
+      } finally {
+        this.isRegeneratingQuestion = false
+      }
+    },
     openRulesDrawer() {
       this.rulesForm = getInterrogationConfig()
       this.rulesDrawerVisible = true
@@ -854,7 +905,7 @@ export default {
       const traverse = (node, depth = 0, path = '') => {
         if (!node || !node.data) return
         const id = node.data.uid || node.data.id
-        const text = (node.data.text || '').replace(/<[^>]+>/g, '').trim() || '未命名'
+        const text = stripHtml(node.data.text || '') || '未命名'
         const fullPath = path ? `${path} ➔ ${text}` : text
         const children = node.children || []
         list.push({
@@ -863,7 +914,7 @@ export default {
           label: '　'.repeat(depth) + (depth > 0 ? '└─ ' : '') + text,
           fullPath,
           childrenCount: children.length,
-          previewChildren: children.slice(0, 6).map(c => (c.data?.text || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean)
+          previewChildren: children.slice(0, 6).map(c => stripHtml(c.data?.text || '')).filter(Boolean)
         })
         children.forEach(c => traverse(c, depth + 1, fullPath))
       }
@@ -1103,7 +1154,13 @@ export default {
         dimension: data.dimension || (this.selectedMode === 'memory' ? 'what' : 'why'),
         dimension_name: data.dimension_name || (this.selectedMode === 'memory' ? '是什么' : '为什么'),
         aspect_domain: stripHtml(data.aspect_domain || '主干知识网络'),
-        aspect_subdivision: data.aspect_subdivision || (this.selectedMode === 'memory' ? '高考核心概念定理 · 本质定义与规范表述' : '深层因果机制链条 · 成立机理深度复盘'),
+        aspect_subdivision: stripHtml(data.aspect_subdivision || '导图原位遮盖直问'),
+        masked_label: stripHtml(data.masked_label || ''),
+        slot_label: stripHtml(data.slot_label || ''),
+        sibling_index: data.sibling_index || 1,
+        sibling_count: data.sibling_count || 1,
+        sibling_context: Array.isArray(data.sibling_context) ? data.sibling_context : [],
+        node_note: stripHtml(data.node_note || ''),
         question: stripHtml(data.question_title || data.question || data.text),
         understanding_hint: stripHtml(data.understanding_hint || ''),
         standard_answer: stripHtml(data.standard_answer || ''),
@@ -1133,6 +1190,7 @@ export default {
         const status = node.data.status || 'pending'
         const stdAns = stripHtml(node.data.standard_answer || '标准答案')
         const rawTitle = stripHtml(node.data.target_node_text || '考点')
+        const maskedLabel = stripHtml(node.data.masked_label || '')
         const dimName = node.data.dimension_name || '考查'
 
         if (i === activeIndex) {
@@ -1142,7 +1200,9 @@ export default {
           node.data.borderWidth = 3
           node.data.color = '#1e40af'
           if (!node.data.isCompleted) {
-            node.data.text = `🎯 [考查中] ${rawTitle} (${i + 1})`
+            node.data.text = maskedLabel
+              ? `🎯 [当前提问 #${i + 1}] ${maskedLabel}`
+              : `🎯 [当前提问 #${i + 1}] ${rawTitle}`
           }
         } else {
           // 非当前节点：根据其已评定的状态恢复对应的图标与颜色
@@ -1172,7 +1232,9 @@ export default {
             node.data.color = '#991b1b'
           } else {
             // 待考查
-            node.data.text = `❓ 【${dimName}】${rawTitle} (${i + 1})`
+            node.data.text = maskedLabel
+              ? `❓ [${maskedLabel}] (${i + 1})`
+              : `❓ 【${dimName}】${rawTitle} (${i + 1})`
             node.data.fillColor = '#fefce8'
             node.data.borderColor = '#eab308'
             node.data.borderWidth = 2
@@ -1224,14 +1286,14 @@ export default {
         const customRules = getInterrogationConfig()
         const endpoint = `${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
-        const judgePrompt = `【考官审判任务】
-考查模式：${this.selectedMode === 'memory' ? '内容记忆与理解' : '内容深度理解'}
+        const judgePrompt = `【导图原位遮盖判分任务】
+考查模式：${this.selectedMode === 'memory' ? '内容记忆还原' : '内容理解复盘'}
 考查问题：${this.currentQuiz.question}
-标准要点：${this.currentQuiz.standard_answer || this.currentQuiz.evaluation_criteria || '逻辑自洽'}
+原节点标准内容（唯一基准）：${this.currentQuiz.standard_answer || this.currentQuiz.evaluation_criteria || '逻辑自洽'}
 学生作答：${this.userAnswerText.trim()}
-用户自定义要求：${customRules.customExtraInstructions || '严格按照学科标准打分'}
+用户规则：${customRules.customExtraInstructions || '只对照导图原节点内容判分，不苛求导图之外的拓展内容'}
 
-请以高考阅卷组长口吻对学生作答进行审评打分（强制输出合法的 JSON 对象）：
+【判分铁律】：只对照“原节点标准内容”判断学生是否回答出了核心含义或原文要点，绝不因为学生没写出导图里本来就没有的拓展知识而扣分！请输出合法的 JSON 对象：
 {
   "grade": 3 | 2 | 1 | 0, // 3: 完全正确推导清晰; 2: 答对但略有瑕疵; 1: 概念混淆或前提缺失; 0: 完全错误或答非所问
   "interrogation_critique": "一针见血指出学生答案中的核心思维漏洞、条件缺失或精准点拨"
@@ -1254,7 +1316,7 @@ export default {
         if (!res.ok) throw new Error(`审判接口请求失败 (${res.status})`)
         const data = await res.json()
         const content = data.choices?.[0]?.message?.content || '{}'
-        const parsed = JSON.parse(content)
+        const parsed = parseModelJsonResponse(content) || {}
         this.currentJudgeResult = parsed
 
         // 保存到当前节点
@@ -1315,7 +1377,6 @@ export default {
         if (this.quizMindMapInstance) {
           try {
             this.quizMindMapInstance.setData(JSON.parse(JSON.stringify(this.quizTreeData.root)))
-            this.quizMindMapInstance.render()
           } catch (e) {}
         }
       }

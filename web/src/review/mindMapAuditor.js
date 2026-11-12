@@ -71,83 +71,70 @@ export const INTERROGATION_SYSTEM_PROMPT = `# Role: 思维导图苏格拉底式�
   "question": "具体的考查问题题干",
   "evaluation_criteria": "答题判定核心要点（仅供考官评估）"
 }`
-export const MEMORY_INTERROGATION_SYSTEM_PROMPT = `# Role: 高考直接主力军考官 · 模式一【有什么、是什么】（以理解促记忆）
+export const MEMORY_INTERROGATION_SYSTEM_PROMPT = `# Role: 高考直接主力军 · 思维导图原位遮盖考官 · 模式一【有什么、是什么】（清晰直问 · 绝不拓展）
 
-你负责依据学生的思维导图节点及其所有子节点内容，发起以【有什么】（要素/分类/清单/篇目）与【是什么】（定义/概念/名篇名句/定理公式）为核心的高考知识点考查。
-考查对象涵盖：高考卷面直接考查、直接拿分的高考核心考点，包括必背古诗文名句、英语作文高级素材/句型、文理科各学科记忆性核心概念与知识清单。
+你负责将学生的思维导图节点内容“遮盖”起来，贯彻“注重理解，只有理解了才能记忆住”理念，**只针对该被遮盖节点本身的内容**提出清晰、具体、直白的问题，考查【有什么】（要素/分类）与【是什么】（定义/原文/公式/结论）。
 
 ---
 
 ## 核心总原则（最高指导铁律）
-**所有内容必须为高考服务，不需要复习、考察过度超纲（对高考没有帮助的内容）！**
-出题严禁脱离高考大纲与评价体系，绝不考偏门冷僻无益的细枝末节，严禁大学专业课式过度超纲。
-
----
-
-## 出题准则（核心教学原则）
-1. **模式一核心使命（高考直接主力军：有什么、是什么）**：
-   - 【有什么】：盘点分类、核心要素清单、考点形态、代表篇目、典型表现。
-   - 【是什么】：考查精确定义、概念内涵、原文字句、定理公式表述。
-2. **注重理解，只有理解了才能记忆住**：
-   - 严禁机械地让学生生硬复写。
-   - 提问时必须先从高考常见语境、逻辑关系、情感意境或应用背景切入设问，引导学生先在大脑中激活对该内容的深层理解，再回忆并准确作答。
-3. **生僻难写易错字精准提取（仅对难写字激活手写训练）**：
-   - 严格审查题目涉及的内容中，是否存在笔画繁难、高考极易写错的生僻字/通假字/同音易错字（特别针对古诗文名句，如“舸舰弥津”的“舸舰”、“落霞与孤鹜齐飞”的“鹜”、“飞阁流丹”等）。
-   - 若存在难写字，在 \`difficult_chars\` 字段中列出具体的难写汉字列表，并将 \`has_difficult_chars\` 设为 true。
-   - 若属于普通现代汉语词汇、一般学科术语或英语作文素材，必须将 \`has_difficult_chars\` 设为 false，\`difficult_chars\` 设为空数组 []。
+1. **只考思维导图的内容，严禁过度拓展延伸**：
+   - 被遮盖节点的原始内容（\`masked_content\`）就是这道题的唯一答案。
+   - **绝对禁止**向外发散拓展导图里没有的知识点、**绝对禁止**编造无关背景或考乱七八糟的题外话！
+   - 所有内容必须为高考服务，不需要复习、考察过度超纲（对高考没有帮助的内容）。
+2. **保证问题的清晰性与针对性（确保学生一眼看明白考的什么）**：
+   - 题干必须直接、明确、简练，清楚指明是在问导图哪个父分支下的哪项内容（例如“在【父节点】分支下，进行该过程的具体场所是什么？”）。
+   - **严禁堆砌晦涩模糊的套话**（禁止使用“请阐述其核心内涵属性与本质特征”这种空洞套话）。
+   - 若同级有多个兄弟节点，请结合父子路径与兄弟节点的区别明确提问焦点，避免与兄弟节点混淆（但**绝不能在题干中直接剧透答案核心词**）。
+3. **生僻难写易错字精准提取**：
+   - 仅当被遮盖内容包含古诗文名句或笔画繁难易错字时，将难写字填入 \`difficult_chars\` 并设 \`has_difficult_chars: true\`；其余情况设 \`has_difficult_chars: false\`，\`difficult_chars: []\`。
 
 ---
 
 ## 输出规范（强制纯 JSON 格式）
 {
   "target_node_id": "考查的节点 ID",
-  "target_node_text": "节点名称",
+  "target_node_text": "被遮盖节点定位名称",
   "dimension": "what" | "which",
   "dimension_name": "是什么" | "有什么",
-  "question": "具体的考查问题题干（结合高考语境与理解设问）",
-  "understanding_hint": "理解支架与深层机理提示",
-  "standard_answer": "标准答案文本（完整准确内容）",
-  "has_difficult_chars": true,
-  "difficult_chars": ["舸", "舰", "鹜"],
-  "evaluation_criteria": "答题判定核心要点（高考采分点）"
+  "aspect_subdivision": "简明的考查焦点（如：具体定义 / 核心要素 / 名句原句 / 适用条件）",
+  "question": "清晰直白的提问题干（一眼看懂在问被遮盖节点的什么内容，绝不剧透答案、绝不拓展导图外知识）",
+  "understanding_hint": "简短不剧透的作答范围提示（例如提示所属范围或字数）",
+  "standard_answer": "原节点被遮盖的原始内容（100%忠实于导图）",
+  "has_difficult_chars": false,
+  "difficult_chars": [],
+  "evaluation_criteria": "对照导图原节点的核对要点"
 }`
 
-export const UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT = `# Role: 高考理解后勤部考官 · 模式二【为什么、为了什么】（深度机理复盘）
+export const UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT = `# Role: 高考理解后勤部 · 思维导图原位遮盖考官 · 模式二【为什么、为了什么】（精准因果直问 · 绝不拓展）
 
-你负责基于学生的思维导图节点及其子节点，围绕【为什么】（深层机理/因果推导/成立依据）与【为了什么】（本质意图/学科工具价值/实际应用）两大认知维度发起深度思辨复盘提问。
-考查对象：数理化生核心定律、深层原理机制模型及因果推导，作为高考大题综合分析、迁移应用的强力“理解后勤部”！
+你负责将学生的思维导图节点内容“遮盖”起来，围绕【为什么】（原因/机理/依据）与【为了什么】（作用/目的/意义）两大维度，**只针对被遮盖节点本身在导图中的逻辑内容**发起清晰、具体的提问。
 
 ---
 
 ## 核心总原则（最高指导铁律）
-**所有内容必须为高考服务，不需要复习、考察过度超纲（对高考没有帮助的内容）！**
-提问必须服务于高考高难度大题的思维逻辑链条，深挖考纲之内的本质原理，坚决剔除大学专业课式无益超纲与偏门怪题。
-
----
-
-## 深度理解提问模型（高考理解后勤部）
-1. **为什么 (why)**：考查因果链条、深层机理、从前提推导至结论的严密演绎步骤，为什么该结论必然成立。
-2. **为了什么 (for_what)**：考查学科工具价值、引入该模型/概念是为了解决什么本质学科问题，如何指导高考大题破题解题。
-
----
-
-## 铁律
-1. 直击思维本质与机理，严禁在题干中直接剧透答案。
-2. 纯思维推导与键盘/默答，完全免除手写练字。
-3. 必须给出标准推导答案与理解支架，供学生自我复盘与考官审判。
+1. **只考思维导图的内容，严禁过度拓展延伸**：
+   - 被遮盖节点的原始内容（\`masked_content\`）就是这道题的唯一答案。
+   - **绝对禁止**脱离导图向外发散、**绝对禁止**出导图里根本没有涉及的复杂大题或乱七八糟的内容！
+   - 所有内容必须为高考服务，不需要复习、考察过度超纲（对高考没有帮助的内容）。
+2. **保证问题的清晰性与针对性（确保学生一眼看明白考的什么）**：
+   - 题干必须开门见山、直白好懂，让人一眼就知道要回答导图里哪一处的原因、作用或机理（禁止用“剖析引入该概念的工具价值与高考大题迁移破题”这类空洞绕口套话）。
+   - 结合父节点路径与同级节点语境，清晰锁定唯一被遮盖的这一条节点内容，且**绝不在题干中剧透答案词**。
+3. **纯思维作答**：免除手写练字，\`has_difficult_chars\` 固定为 false。
 
 ---
 
 ## 输出规范（强制纯 JSON 格式）
 {
   "target_node_id": "考查的节点 ID",
-  "target_node_text": "节点名称",
+  "target_node_text": "被遮盖节点定位名称",
   "dimension": "why" | "for_what",
   "dimension_name": "为什么" | "为了什么",
-  "question": "具体的考查问题题干（高考深度理解设问）",
-  "understanding_hint": "推导思考切入点与概念支架",
-  "standard_answer": "标准推导答案与专业规范表述",
-  "evaluation_criteria": "必须包含的核心推导步骤与学科术语（高考采分关键点）"
+  "aspect_subdivision": "简明的理解考查焦点（如：产生原因 / 成立条件 / 核心作用 / 主要目的）",
+  "question": "清晰直白的提问题干（一眼看懂在问被遮盖节点的什么原因/作用/机理，绝不剧透、绝不拓展导图外内容）",
+  "understanding_hint": "简短不剧透的作答范围提示",
+  "standard_answer": "原节点被遮盖的原始内容（100%忠实于导图）",
+  "evaluation_criteria": "对照导图原节点逻辑要点的核对标准"
 }`
 
 export function parseModelJsonResponse(rawText) {
@@ -458,6 +445,33 @@ export function stripHtml(text) {
   return res.replace(/\s+/g, ' ').trim()
 }
 
+/**
+ * 识别节点文本中自然存在的 "标签：内容" 结构（如 "定义：..."、"公式：F=ma"）
+ * 用于原位遮盖时保留清晰的题目提示前缀，只遮盖冒号后的核心答案
+ */
+export function extractNodeMaskInfo(rawText) {
+  const clean = stripHtml(rawText || '')
+  const colonMatch = clean.match(/^([^：:]{1,18})[：:]\s*(.+)$/)
+  if (colonMatch) {
+    const prefix = colonMatch[1].trim()
+    const rest = colonMatch[2].trim()
+    if (!/^https?$/i.test(prefix) && !/^\d+$/.test(prefix) && rest.length > 0) {
+      return {
+        hasSlotLabel: true,
+        slotLabel: prefix,
+        maskedContent: rest,
+        fullContent: clean
+      }
+    }
+  }
+  return {
+    hasSlotLabel: false,
+    slotLabel: '',
+    maskedContent: clean,
+    fullContent: clean
+  }
+}
+
 export function buildQuizMindMapTree(rootNodeData, options = {}) {
   if (!rootNodeData || !rootNodeData.data) {
     throw new Error('当前思维导图大纲为空，无法构建考查导图。')
@@ -487,13 +501,14 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
 
   let quizIndex = 0
 
-  const traverse = (node, path = []) => {
+  const traverse = (node, path = [], siblingIndex = 1, siblingCount = 1, siblingTexts = []) => {
     if (!node || !node.data) return
     node.data.expand = true
     // 强制清洗富文本 HTML 标签，保证纯文本呈现
     const rawText = stripHtml(node.data.text || '')
     const currentPath = [...path, rawText]
-    const isLeaf = !node.children || node.children.length === 0
+    const children = node.children || []
+    const isLeaf = children.length === 0
 
     // 清除富文本标志，避免 simple-mind-map 用 HTML 渲染污染节点
     delete node.data.richText
@@ -509,6 +524,8 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
       const qIndex = quizIndex++
       const parentName = path.length > 0 ? stripHtml(path[path.length - 1]) : '核心考点'
       const breadcrumb = path.map(p => stripHtml(p)).join(' ➔ ') || '主干知识网络'
+      const maskInfo = extractNodeMaskInfo(rawText)
+      const noteText = stripHtml(node.data.note || '')
 
       let dimension = 'what'
       let dimension_name = '是什么'
@@ -518,43 +535,66 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
       let hasDifficult = false
       let diffChars = []
 
+      const targetDisplayText = maskInfo.hasSlotLabel
+        ? `${parentName} ➔ ${maskInfo.slotLabel}`
+        : (siblingCount > 1 ? `${parentName}（第 ${siblingIndex}/${siblingCount} 项）` : parentName)
+
+      const maskedDisplayLabel = maskInfo.hasSlotLabel
+        ? `${maskInfo.slotLabel}：______`
+        : (siblingCount > 1
+            ? `第${siblingIndex}/${siblingCount}项已遮盖 · ${rawText.length}字`
+            : `已遮盖 · ${rawText.length}字`)
+
+      const siblingHint = siblingCount > 1 ? `同级第 ${siblingIndex} 项（共 ${siblingCount} 项），` : ''
+
       if (mode === 'memory') {
         diffChars = detectDifficultChars(rawText)
         hasDifficult = diffChars.length > 0
 
-        if (hasDifficult || /[\u4e00-\u9fa5]{8,}/.test(rawText) || /[，。！？；、]/.test(rawText)) {
+        if (maskInfo.hasSlotLabel) {
           dimension = 'what'
           dimension_name = '是什么'
-          aspect_subdivision = '高考必背名篇名句默写 · 意境理解与生僻字精准考查'
-          question_title = `【名句默写】请结合语境与意境，完整默写出【${parentName}】对应的名句，并注意生僻字笔画规范。`
-          understanding_hint = '结合上下文语境与意境氛围回忆，重点关注笔画繁难生僻字与同音形近字。'
-        } else if (rawText.includes('、') || rawText.includes('/') || rawText.includes('，') || rawText.length <= 6) {
+          aspect_subdivision = `导图原位遮盖 · 「${maskInfo.slotLabel}」内容还原`
+          question_title = `在导图【${breadcrumb}】中，被遮盖节点「${maskInfo.slotLabel}」的具体内容是什么？（约 ${maskInfo.maskedContent.length} 字）`
+          understanding_hint = `位于【${breadcrumb}】${siblingHint}仅回忆「${maskInfo.slotLabel}」被遮盖的原文内容，不拓展导图外知识。`
+        } else if (hasDifficult || (/[一-龥]{8,}/.test(rawText) && /[，。！？；、]/.test(rawText))) {
+          dimension = 'what'
+          dimension_name = '是什么'
+          aspect_subdivision = hasDifficult ? '导图原句默写 · 含易错生僻字检查' : '导图原文/要点精准还原'
+          question_title = `请回忆并补全导图【${breadcrumb}】中${siblingCount > 1 ? `第 ${siblingIndex} 项` : '当前'}被遮盖的原文内容（约 ${rawText.length} 字）。`
+          understanding_hint = `位于【${breadcrumb}】${siblingHint}紧扣导图原内容作答${hasDifficult ? '，注意笔画繁难生僻字' : ''}。`
+        } else if (rawText.includes('、') || rawText.includes('/')) {
           dimension = 'which'
           dimension_name = '有什么'
-          aspect_subdivision = '高考核心要素清单 · 分类形态与组成考查'
-          question_title = `【要素清单】请完整盘点【${parentName}】包含哪些核心分支要素与分类形态？`
-          understanding_hint = '宏观梳理知识框架，条理化盘点所有关键要素与分类分支。'
+          aspect_subdivision = '导图原位遮盖 · 并列要素还原'
+          question_title = `在导图【${breadcrumb}】分支下，${siblingCount > 1 ? `第 ${siblingIndex} 个` : '当前'}被遮盖节点写明了哪些具体要素？（约 ${rawText.length} 字）`
+          understanding_hint = `位于【${breadcrumb}】${siblingHint}仅列出该被遮盖节点原本记录的内容。`
         } else {
           dimension = 'what'
           dimension_name = '是什么'
-          aspect_subdivision = '高考核心概念定理 · 本质定义与学科表述考查'
-          question_title = `【概念定义】请阐述【${parentName}】的高考学科严谨定义、内涵属性与关键特征。`
-          understanding_hint = '聚焦学科规范术语，准确还原核心定义与成立内涵。'
+          aspect_subdivision = '导图原位遮盖 · 节点内容回忆'
+          question_title = `请回忆导图【${breadcrumb}】下${siblingCount > 1 ? `第 ${siblingIndex} 个` : '当前'}被遮盖节点的具体内容是什么？（约 ${rawText.length} 字）`
+          understanding_hint = `位于【${breadcrumb}】${siblingHint}仅回忆该被遮盖节点本身的内容，不考导图外拓展知识。`
         }
       } else {
-        const isWhy = qIndex % 2 === 0 || /原因|机理|推导|定律|原理|规律|条件/.test(parentName + rawText)
-        if (isWhy) {
-          dimension = 'why'
-          dimension_name = '为什么'
-          aspect_subdivision = '深层因果机制链条 · 成立机理与推导依据深度复盘'
-          question_title = `【机理推导】请深入剖析【${parentName}】：为什么该结论必然成立？其深层因果推导依据是什么？`
-          understanding_hint = '严密梳理因果链条，从底层定理逐步演绎，不放过任何跳步推导。'
-        } else {
+        const isWhy = /原因|成因|因为|由于|机理|依据|条件|规律|推导/.test(maskInfo.slotLabel + rawText)
+        const isForWhat = /为了|目的|作用|意义|价值|解决/.test(maskInfo.slotLabel + rawText)
+        if (isForWhat && !isWhy) {
           dimension = 'for_what'
           dimension_name = '为了什么'
-          aspect_subdivision = '学科工具价值与本质意图 · 高考综合大题迁移破题'
-          question_title = `【工具意图】请剖析引入【${parentName}】的核心目的与工具价值：它是为了解决什么本质问题？如何指导大题破题？`
-          understanding_hint = '从高考综合大题的破题工具视角，分析该知识点在解题中的核心定位。'
+          aspect_subdivision = maskInfo.hasSlotLabel ? `导图原位遮盖 · 「${maskInfo.slotLabel}」作用/目的` : '导图原位遮盖 · 作用与目的复盘'
+          question_title = maskInfo.hasSlotLabel
+            ? `在导图【${breadcrumb}】中，关于「${maskInfo.slotLabel}」被遮盖的作用、目的或意义是什么？（约 ${maskInfo.maskedContent.length} 字）`
+            : `请结合导图【${breadcrumb}】，说明${siblingCount > 1 ? `第 ${siblingIndex} 个` : '当前'}被遮盖节点写明的作用、目的或意义是什么？（约 ${rawText.length} 字）`
+          understanding_hint = `位于【${breadcrumb}】${siblingHint}只围绕该被遮盖节点记录的作用/目的作答，不拓展导图外内容。`
+        } else {
+          dimension = 'why'
+          dimension_name = '为什么'
+          aspect_subdivision = maskInfo.hasSlotLabel ? `导图原位遮盖 · 「${maskInfo.slotLabel}」原因/机理` : '导图原位遮盖 · 原因与依据复盘'
+          question_title = maskInfo.hasSlotLabel
+            ? `在导图【${breadcrumb}】中，关于「${maskInfo.slotLabel}」被遮盖的原因、条件或核心结论是什么？（约 ${maskInfo.maskedContent.length} 字）`
+            : `请结合导图【${breadcrumb}】，回答${siblingCount > 1 ? `第 ${siblingIndex} 个` : '当前'}被遮盖节点所说明的原因、依据或结论内容（约 ${rawText.length} 字）。`
+          understanding_hint = `位于【${breadcrumb}】${siblingHint}只紧扣该被遮盖节点本身的内容作答，不拓展导图外知识。`
         }
       }
 
@@ -566,54 +606,67 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
       node.data.dimension_name = dimension_name
       node.data.aspect_domain = breadcrumb
       node.data.aspect_subdivision = aspect_subdivision
-      node.data.target_node_text = parentName
+      node.data.target_node_text = targetDisplayText
+      node.data.masked_label = maskedDisplayLabel
+      node.data.slot_label = maskInfo.slotLabel
+      node.data.sibling_index = siblingIndex
+      node.data.sibling_count = siblingCount
+      node.data.sibling_context = siblingTexts
+      node.data.node_note = noteText
       node.data.question_title = question_title
       node.data.understanding_hint = understanding_hint
       node.data.standard_answer = rawText
       node.data.has_difficult_chars = hasDifficult
       node.data.difficult_chars = diffChars
-      node.data.evaluation_criteria = mode === 'memory'
-        ? '必须包含高考核心专业术语/名句原字，生僻字书写完全正确。'
-        : '必须包含严密因果推导链条与高考解题学科规范表述。'
+      node.data.evaluation_criteria = `对照导图原节点内容核对：${rawText}`
 
-      // 视觉进度初始状态：黄色待考查，纯文本无任何 HTML 标签
-      node.data.text = `❓ 【${dimension_name}】${parentName} (${qIndex + 1})`
+      // 视觉进度初始状态：黄色待考查，原位遮盖提示，纯文本无任何 HTML 标签
+      node.data.text = `❓ [${maskedDisplayLabel}] (${qIndex + 1})`
       node.data.fillColor = '#fefce8'
       node.data.borderColor = '#eab308'
       node.data.borderWidth = 2
       node.data.color = '#854d0e'
     } else {
       if (node === targetRoot) {
-        node.data.text = `${rawText} [${mode === 'memory' ? '主力军考查' : '后勤部复盘'}]`
+        node.data.text = `${rawText} [${mode === 'memory' ? '原位遮盖记忆' : '原位遮盖理解'}]`
       } else {
         node.data.text = rawText
       }
     }
 
-    for (const child of node.children || []) {
-      traverse(child, currentPath)
-    }
+    const childTexts = children.map(c => stripHtml(c?.data?.text || '')).filter(Boolean)
+    children.forEach((child, idx) => {
+      traverse(child, currentPath, idx + 1, children.length, childTexts)
+    })
   }
 
-  traverse(targetRoot, [])
+  traverse(targetRoot, [], 1, 1, [])
 
   if (quizIndex === 0) {
     const rawRootText = stripHtml(targetRoot.data.text || '')
+    const maskLabel = `内容已遮盖 · ${rawRootText.length}字`
     delete targetRoot.data.richText
     targetRoot.data.resetRichText = true
     targetRoot.data.expand = true
     targetRoot.data.isQuestion = true
     targetRoot.data.quizIndex = 0
+    targetRoot.data.target_node_id = targetRoot.data.uid || targetRoot.data.id || 'quiz_node_0'
     targetRoot.data.status = 'pending'
     targetRoot.data.dimension = mode === 'memory' ? 'what' : 'why'
     targetRoot.data.dimension_name = mode === 'memory' ? '是什么' : '为什么'
     targetRoot.data.aspect_domain = '核心知识网络'
-    targetRoot.data.aspect_subdivision = mode === 'memory' ? '核心知识结构盘点' : '核心原理机制复盘'
+    targetRoot.data.aspect_subdivision = '导图原位遮盖 · 单节点内容还原'
     targetRoot.data.target_node_text = rawRootText
-    targetRoot.data.question_title = `请对【${rawRootText}】的核心考点与知识体系发起系统阐述。`
-    targetRoot.data.understanding_hint = '宏观梳理结构脉络与核心逻辑。'
+    targetRoot.data.masked_label = maskLabel
+    targetRoot.data.slot_label = ''
+    targetRoot.data.sibling_index = 1
+    targetRoot.data.sibling_count = 1
+    targetRoot.data.sibling_context = []
+    targetRoot.data.question_title = `请回忆当前导图核心节点被遮盖的内容（约 ${rawRootText.length} 字）。`
+    targetRoot.data.understanding_hint = '仅回忆该被遮盖节点本身记录的内容。'
     targetRoot.data.standard_answer = rawRootText
-    targetRoot.data.text = `❓ 【${targetRoot.data.dimension_name}】${rawRootText}`
+    targetRoot.data.evaluation_criteria = `对照导图原节点内容核对：${rawRootText}`
+    targetRoot.data.text = `❓ [${maskLabel}] (1)`
     targetRoot.data.fillColor = '#fefce8'
     targetRoot.data.borderColor = '#eab308'
     targetRoot.data.borderWidth = 2
@@ -624,13 +677,8 @@ export function buildQuizMindMapTree(rootNodeData, options = {}) {
 }
 
 /**
- * 基于思维导图由大模型生成高考考查题目导图树
- * 1. 本地首先基于导图层级构建完整的挖空设问树骨架 (buildQuizMindMapTree)
- * 2. 提取导图结构化 Markdown 大纲 (extractKnowledgeOutline)
- * 3. 收集树中待考查的问题节点清单
- * 4. 调用配置的 AI 模型（Gemini / DeepSeek / OpenAI 等），结合考官模式与高考不超纲铁律，基于思维导图深度生成情境化高考考题
- * 5. 将 AI 生成的高考考题回填至导图树对应的设问节点中
- * 6. 若离线、未配置 AI Key 或网络异常，安全降级为本地考纲模型，保障 0 崩溃
+ * 基于思维导图由大模型生成原位遮盖精准考题导图树
+ * 铁律：只考思维导图的内容！对节点内容原位遮盖后清晰直接提问，严禁过度拓展延伸和考乱七八糟内容
  */
 export async function generateQuizMindMapTree(rootNodeData, options = {}) {
   const baseResult = buildQuizMindMapTree(rootNodeData, options)
@@ -661,7 +709,7 @@ export async function generateQuizMindMapTree(rootNodeData, options = {}) {
     return {
       ...baseResult,
       aiGenerated: false,
-      aiNotice: '当前未配置 AI API Key，已启用本地考纲模型出题。在 API 配置中填入密钥可享受 AI 大模型深度定制命题。'
+      aiNotice: '当前未配置 AI API Key，已启用本地原位遮盖直问模型。在 API 配置中填入密钥可由 AI 优化提问清晰度。'
     }
   }
 
@@ -686,7 +734,7 @@ export async function generateQuizMindMapTree(rootNodeData, options = {}) {
 
 ---
 
-## 附加用户定制考官规则与高考铁律：
+## 附加用户定制规则：
 ${customRules}
 ${extraInstructions ? `\n附加要求：${extraInstructions}` : ''}
 
@@ -697,142 +745,155 @@ ${extraInstructions ? `\n附加要求：${extraInstructions}` : ''}
 {
   "questions": [
     {
-      "target_node_id": "对应考查节点的 ID 或标识",
-      "target_node_text": "考点名称（纯文本，绝不包含任何 HTML 标签）",
+      "target_node_id": "对应考查节点的 ID",
+      "target_node_text": "被遮盖节点定位名称（纯文本）",
       "dimension": "what" | "which" | "why" | "for_what",
       "dimension_name": "是什么" | "有什么" | "为什么" | "为了什么",
-      "aspect_subdivision": "具体的细分考查方向（例如：核心要素盘点 / 定理公式定义 / 深层因果机制推导 / 高考大题迁移破题）",
-      "question": "AI针对该导图节点精心编写的高考考查题干（结合高考情境或因果机理，绝不剧透答案）",
-      "understanding_hint": "解题切入点与思考支架（无答案，启发解题思路）",
-      "standard_answer": "结合导图内容的高考标准答案与规范表述（纯文本）",
+      "aspect_subdivision": "简明的考查焦点（5~12字，如：具体作用 / 核心定义 / 成立条件 / 名句补全）",
+      "question": "清晰直白的问题（只问该节点被遮盖的原始内容，让人一眼看懂考什么；绝不拓展导图外内容，绝不剧透答案核心词）",
+      "understanding_hint": "简短不剧透的作答范围提示（例如提示所属类别或字数）",
+      "standard_answer": "原节点被遮盖的原始内容（原封不动保留 masked_content）",
       "has_difficult_chars": false,
       "difficult_chars": [],
-      "evaluation_criteria": "高考阅卷标准与核心采分点"
+      "evaluation_criteria": "对照导图原节点的核对要点"
     }
   ]
 }`
 
-  const targetNodesPayload = questionNodes.slice(0, 15).map((qNode, idx) => {
-    return {
-      index: idx + 1,
-      target_node_id: qNode.data.target_node_id || qNode.data.uid || qNode.data.id || `node_${idx}`,
-      target_node_text: stripHtml(qNode.data.target_node_text || qNode.data.text || ''),
-      path: stripHtml(qNode.data.aspect_domain || ''),
-      dimension: qNode.data.dimension || (mode === 'memory' ? 'what' : 'why'),
-      standard_answer_ref: stripHtml(qNode.data.standard_answer || '')
-    }
-  })
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+  let anyAiSuccess = false
+  let lastError = null
 
-  const userPrompt = `请深度研读以下学生的思维导图大纲，严格基于该思维导图的知识脉络与节点从属关系，为清单中的每个考查节点编写一套真实、严谨的高考考题（必须为高考服务，绝不考偏门无益内容）：
+  // 分批处理最多 45 个节点（每批 15 个），确保大分支每个被遮盖节点都能得到清晰精准提问
+  const maxTotalNodes = Math.min(questionNodes.length, 45)
+  for (let start = 0; start < maxTotalNodes; start += 15) {
+    const batchNodes = questionNodes.slice(start, start + 15)
+    const targetNodesPayload = batchNodes.map((qNode, idx) => {
+      return {
+        index: start + idx + 1,
+        target_node_id: qNode.data.target_node_id || qNode.data.uid || qNode.data.id || `node_${start + idx}`,
+        path: stripHtml(qNode.data.aspect_domain || ''),
+        slot_label: qNode.data.slot_label || '',
+        sibling_position: qNode.data.sibling_count > 1
+          ? `第 ${qNode.data.sibling_index} 项（同级共 ${qNode.data.sibling_count} 项）`
+          : '唯一子节点',
+        sibling_titles_context: Array.isArray(qNode.data.sibling_context) ? qNode.data.sibling_context : [],
+        node_note: qNode.data.node_note || '',
+        masked_content: stripHtml(qNode.data.standard_answer || '')
+      }
+    })
 
-### 思维导图知识大纲：
+    const userPrompt = `请严格阅读以下思维导图大纲，并针对清单中的每个被遮盖节点编写一道**清晰、直白、只考该节点本身内容**的问题：
+
+【重要要求】：
+1. **只考思维导图的内容**：每个节点的 \`masked_content\` 就是这道题的唯一答案，**绝对不要拓展衍生导图外的知识，不要考乱七八糟的内容**。
+2. **让人看明白考什么**：题干要简洁直白，利用 \`path\`、\`slot_label\` 和同级兄弟节点信息 \`sibling_titles_context\` 明确区分提问对象（避免同级多个节点问得一模一样让人分不清），但**不要把答案核心词直接写在题干里**。
+3. **不要堆砌空洞套话**：比如不要写“请深入剖析其本质属性与工具价值及大题破题”。
+
+### 思维导图大纲（仅供参考上下级结构，不可拓展超纲）：
 \`\`\`markdown
 ${outline}
 \`\`\`
 
-### 需出题的考查目标节点清单：
+### 被遮盖节点清单（本批 ${batchNodes.length} 个）：
 ${JSON.stringify(targetNodesPayload, null, 2)}
 `
 
-  try {
-    const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 40000)
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 40000)
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.3,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ]
-      }),
-      signal: controller.signal
-    })
-    clearTimeout(timeoutId)
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ]
+        }),
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
 
-    if (!response.ok) {
-      const errText = await response.text()
-      console.warn('AI 出题接口响应异常:', errText)
-      return {
-        ...baseResult,
-        aiGenerated: false,
-        aiError: `AI 服务返回 HTTP ${response.status}`
+      if (!response.ok) {
+        const errText = await response.text()
+        console.warn('AI 出题接口响应异常:', errText)
+        lastError = `AI 服务返回 HTTP ${response.status}`
+        continue
       }
-    }
 
-    const resJson = await response.json()
-    const rawContent = resJson.choices?.[0]?.message?.content || ''
-    const parsed = parseModelJsonResponse(rawContent)
+      const resJson = await response.json()
+      const rawContent = resJson.choices?.[0]?.message?.content || ''
+      const parsed = parseModelJsonResponse(rawContent)
 
-    const aiList = Array.isArray(parsed)
-      ? parsed
-      : (parsed?.questions && Array.isArray(parsed.questions) ? parsed.questions : null)
+      const aiList = Array.isArray(parsed)
+        ? parsed
+        : (parsed?.questions && Array.isArray(parsed.questions) ? parsed.questions : null)
 
-    if (aiList && aiList.length > 0) {
-      for (let i = 0; i < questionNodes.length; i++) {
-        const qNode = questionNodes[i]
-        const qNodeId = qNode.data.target_node_id || qNode.data.uid || qNode.data.id
-        const qNodeText = stripHtml(qNode.data.target_node_text || '')
+      if (aiList && aiList.length > 0) {
+        anyAiSuccess = true
+        for (let i = 0; i < batchNodes.length; i++) {
+          const qNode = batchNodes[i]
+          const qNodeId = qNode.data.target_node_id || qNode.data.uid || qNode.data.id
+          const originalAnswer = stripHtml(qNode.data.standard_answer || '')
 
-        const aiMatch = aiList.find(item => item.target_node_id && (item.target_node_id === qNodeId || item.target_node_id === qNode.data.uid)) ||
-          aiList.find(item => item.target_node_text && stripHtml(item.target_node_text) === qNodeText) ||
-          aiList[i]
+          const aiMatch = aiList.find(item => item.target_node_id && (item.target_node_id === qNodeId || item.target_node_id === qNode.data.uid)) ||
+            aiList[i]
 
-        if (aiMatch) {
-          if (aiMatch.question) {
+          if (aiMatch && aiMatch.question) {
             qNode.data.question_title = stripHtml(aiMatch.question)
+            if (aiMatch.understanding_hint) {
+              qNode.data.understanding_hint = stripHtml(aiMatch.understanding_hint)
+            }
+            // 铁律：standard_answer 始终忠实保留导图原节点文本，不被 AI 篡改扩写
+            if (!originalAnswer && aiMatch.standard_answer) {
+              qNode.data.standard_answer = stripHtml(aiMatch.standard_answer)
+            }
+            if (aiMatch.aspect_subdivision) {
+              qNode.data.aspect_subdivision = stripHtml(aiMatch.aspect_subdivision)
+            }
+            if (aiMatch.evaluation_criteria) {
+              qNode.data.evaluation_criteria = stripHtml(aiMatch.evaluation_criteria)
+            }
+            if (aiMatch.dimension && ['what', 'which', 'why', 'for_what'].includes(aiMatch.dimension)) {
+              qNode.data.dimension = aiMatch.dimension
+              const dimMap = { what: '是什么', which: '有什么', why: '为什么', for_what: '为了什么' }
+              qNode.data.dimension_name = dimMap[aiMatch.dimension] || qNode.data.dimension_name
+            }
+            if (mode === 'memory' && typeof aiMatch.has_difficult_chars === 'boolean') {
+              const validChars = Array.isArray(aiMatch.difficult_chars)
+                ? aiMatch.difficult_chars.filter(c => typeof c === 'string' && c.length === 1 && originalAnswer.includes(c))
+                : []
+              qNode.data.difficult_chars = validChars
+              qNode.data.has_difficult_chars = validChars.length > 0
+            }
+            qNode.data.ai_generated = true
           }
-          if (aiMatch.understanding_hint) {
-            qNode.data.understanding_hint = stripHtml(aiMatch.understanding_hint)
-          }
-          if (aiMatch.standard_answer) {
-            qNode.data.standard_answer = stripHtml(aiMatch.standard_answer)
-          }
-          if (aiMatch.aspect_subdivision) {
-            qNode.data.aspect_subdivision = stripHtml(aiMatch.aspect_subdivision)
-          }
-          if (aiMatch.evaluation_criteria) {
-            qNode.data.evaluation_criteria = stripHtml(aiMatch.evaluation_criteria)
-          }
-          if (typeof aiMatch.has_difficult_chars === 'boolean') {
-            qNode.data.has_difficult_chars = aiMatch.has_difficult_chars
-          }
-          if (Array.isArray(aiMatch.difficult_chars)) {
-            qNode.data.difficult_chars = aiMatch.difficult_chars.filter(c => typeof c === 'string' && c.length === 1)
-          }
-          qNode.data.ai_generated = true
         }
       }
-      return {
-        ...baseResult,
-        aiGenerated: true
-      }
-    }
-  } catch (e) {
-    console.warn('AI 生成导图题目发生异常，已回退为本地考纲模型:', e)
-    return {
-      ...baseResult,
-      aiGenerated: false,
-      aiError: e.message
+    } catch (e) {
+      console.warn('AI 生成导图题目发生异常，已保留本地原位遮盖直问模型:', e)
+      lastError = e.message
     }
   }
 
   return {
     ...baseResult,
-    aiGenerated: false
+    aiGenerated: anyAiSuccess,
+    ...(lastError && !anyAiSuccess ? { aiError: lastError } : {})
   }
 }
 
 /**
- * 针对当前单个导图节点，由 AI 换个角度重新编写高考题目
+ * 针对当前单个被遮盖导图节点，由 AI 用更清晰直白的问法重新表述问题
+ * 铁律：只考该节点原内容，绝不拓展导图外内容，绝不更改原标准答案
  */
 export async function regenerateSingleQuestionWithAi(questionData, mapOutline = '', options = {}) {
   const cfg = getJudgeAiConfig()
@@ -855,34 +916,46 @@ export async function regenerateSingleQuestionWithAi(questionData, mapOutline = 
     ? MEMORY_INTERROGATION_SYSTEM_PROMPT
     : UNDERSTANDING_INTERROGATION_SYSTEM_PROMPT
 
+  const originalAnswer = stripHtml(questionData.standard_answer || '')
+  const siblingCtx = Array.isArray(questionData.sibling_context) ? questionData.sibling_context : []
+
   const systemPrompt = `${basePrompt}
 
 ---
 
-## 附加用户定制考官规则与高考铁律：
+## 附加用户定制规则：
 ${customRules}
 ${extraInstructions ? `\n附加要求：${extraInstructions}` : ''}
 
-## 单题重新命题输出规范（纯 JSON）：
+## 单题清晰改写输出规范（纯 JSON）：
 {
   "target_node_id": "${questionData.target_node_id || ''}",
   "target_node_text": "${stripHtml(questionData.target_node_text || '')}",
   "dimension": "${questionData.dimension || 'what'}",
   "dimension_name": "${questionData.dimension_name || '是什么'}",
-  "aspect_subdivision": "细分考查方向",
-  "question": "AI基于思维导图换个角度全新设计的高考考查题干（绝不剧透答案）",
-  "understanding_hint": "解题切入点与思考支架（无答案）",
-  "standard_answer": "结合导图的标准答案（纯文本）",
+  "aspect_subdivision": "简明的考查焦点",
+  "question": "针对同一被遮盖节点原内容、换一种更清晰直白的提问表述（只考导图原内容，绝不拓展延伸，绝不剧透答案）",
+  "understanding_hint": "简短不剧透的作答范围提示",
+  "standard_answer": "原节点被遮盖的原始内容（原封不动保留原内容）",
   "has_difficult_chars": false,
   "difficult_chars": [],
-  "evaluation_criteria": "高考采分要点"
+  "evaluation_criteria": "对照导图原节点的核对要点"
 }`
 
-  const userPrompt = `请基于以下思维导图知识大纲，针对节点【${stripHtml(questionData.target_node_text)}】（所属知识定位：${stripHtml(questionData.aspect_domain || '核心网络')}），换个全新的高考考查角度重新编写一道题目：
+  const userPrompt = `请针对下面这一个被遮盖的思维导图节点，换一种**更清晰直白、一眼看明白考什么**的问法重新提问（严格只考节点原内容，绝不过度拓展延伸）：
 
-${mapOutline ? `### 思维导图知识大纲：\n\`\`\`markdown\n${mapOutline}\n\`\`\`\n` : ''}
-原参考内容/标准答案：${stripHtml(questionData.standard_answer || '')}
-`
+- 导图路径：${stripHtml(questionData.aspect_domain || '核心网络')}
+- 定位名称：${stripHtml(questionData.target_node_text || '')}
+${questionData.slot_label ? `- 节点前缀标签：${stripHtml(questionData.slot_label)}
+` : ''}${questionData.sibling_count > 1 ? `- 同级位置：第 ${questionData.sibling_index} 项（共 ${questionData.sibling_count} 项），同级兄弟节点：${JSON.stringify(siblingCtx)}
+` : ''}- 被遮盖的原节点内容（即唯一标准答案）：${originalAnswer}
+- 上一次的提问：${stripHtml(questionData.question || '')}
+${mapOutline ? `
+### 导图上下级参考：
+\`\`\`markdown
+${mapOutline}
+\`\`\`
+` : ''}`
 
   const endpoint = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
   const controller = new AbortController()
@@ -896,7 +969,7 @@ ${mapOutline ? `### 思维导图知识大纲：\n\`\`\`markdown\n${mapOutline}\n
     },
     body: JSON.stringify({
       model,
-      temperature: 0.6,
+      temperature: 0.4,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -919,6 +992,10 @@ ${mapOutline ? `### 思维导图知识大纲：\n\`\`\`markdown\n${mapOutline}\n
     throw new Error('AI 未能返回有效的题目结构，请重试')
   }
 
+  const validDiffChars = (mode === 'memory' && Array.isArray(parsed.difficult_chars))
+    ? parsed.difficult_chars.filter(c => typeof c === 'string' && c.length === 1 && originalAnswer.includes(c))
+    : (questionData.difficult_chars || [])
+
   return {
     ...questionData,
     target_node_text: stripHtml(parsed.target_node_text || questionData.target_node_text),
@@ -927,10 +1004,11 @@ ${mapOutline ? `### 思维导图知识大纲：\n\`\`\`markdown\n${mapOutline}\n
     aspect_subdivision: stripHtml(parsed.aspect_subdivision || questionData.aspect_subdivision),
     question: stripHtml(parsed.question),
     understanding_hint: stripHtml(parsed.understanding_hint || ''),
-    standard_answer: stripHtml(parsed.standard_answer || questionData.standard_answer),
+    // 保真：若原节点有答案，始终保留原节点内容作为唯一标准答案
+    standard_answer: originalAnswer || stripHtml(parsed.standard_answer || ''),
     evaluation_criteria: stripHtml(parsed.evaluation_criteria || questionData.evaluation_criteria),
-    has_difficult_chars: !!parsed.has_difficult_chars,
-    difficult_chars: Array.isArray(parsed.difficult_chars) ? parsed.difficult_chars : [],
+    has_difficult_chars: mode === 'memory' ? (validDiffChars.length > 0) : false,
+    difficult_chars: mode === 'memory' ? validDiffChars : [],
     ai_generated: true
   }
 }
